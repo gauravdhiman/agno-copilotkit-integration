@@ -1,0 +1,122 @@
+This file contains rules for AI code editor to comply with, not related to business logic of an app in development.
+
+# Project Architecture and Structure
+
+## Objective
+Build a scalable AI-agent system that leverages Crew AI for backend agent orchestration and Agno AI framework for enhanced AI capabilities, integrated with a modern Next.js frontend. The system aims to provide a user-friendly AI agentic app / system that will allow user to ask agent to work on user's behalf and user can see the agents progress and can interrupt in-between (if required) like human in loop pattern. For communication between frontend and agentic backend, the project use copilotkit capabilities.
+
+## Tech Stack
+
+### Frontend (under `ui` folder)
+- Next.js (React framework)
+- TypeScript
+- Tailwind CSS
+- Copilotkit
+- ReactJS
+- Jest & React Testing Library
+- Cypress for E2E testing
+
+### Backend (under `api` folder)
+- Python 3.11+
+- FastAPI
+- Agno AI Framework
+- SQLAlchemy ORM
+- PostgreSQL / Supabase
+- Redis for caching
+- Pytest
+- Docker
+- Kubernetes for orchestration
+
+## Directory Organization
+- /frontend: Frontend codebase (Next.js, Tailwind, Agno AI)
+  - /components: Reusable UI components
+  - /lib: Shared utilities and hooks
+  - /app: Page components and routing
+  - /public: Static assets
+
+- /backend: Backend codebase (Python)
+  - /routes: API endpoints
+  - /models: Data models
+  - /services: Business logic
+  - /utils: Helper functions
+
+## Naming Conventions
+
+### Frontend (TypeScript/JavaScript)
+- Components: PascalCase (e.g., UserProfile.tsx)
+- Files: kebab-case (e.g., auth-utils.ts)
+- Functions: camelCase (e.g., handleSubmit)
+- Constants: UPPER_SNAKE_CASE
+- CSS Classes: lowercase with hyphens
+
+### Backend (Python)
+- Files: snake_case (e.g., user_service.py)
+- Classes: PascalCase
+- Functions/Variables: snake_case
+- Constants: UPPER_SNAKE_CASE
+
+## Code Quality Standards
+
+### Frontend
+- Use TypeScript for type safety
+- Implement proper component composition
+- Follow React hooks best practices
+- Maintain consistent Tailwind class ordering
+- Use Agno AI framework conventions
+
+### Backend
+- Follow PEP 8 style guide
+- Use type hints
+- Implement proper error handling
+- Write comprehensive docstrings
+- Use dependency injection
+
+## Documentation Requirements
+- Component documentation with props interface
+- API endpoint documentation with request/response schemas
+- Setup and deployment instructions in README
+- Code comments for complex logic
+- Architecture decisions in .talks folder
+
+## Testing Standards
+
+### Frontend
+- Unit tests for components
+- Integration tests for pages
+- E2E tests for critical flows
+- Test coverage minimum: 80%
+
+### Backend
+- Unit tests for services
+- Integration tests for APIs
+- Mock external dependencies
+- Test coverage minimum: 85%
+
+## Performance Guidelines
+- Implement code splitting
+- Optimize image loading
+- Use proper caching strategies
+- Monitor and optimize API response times
+- Regular performance audits
+
+## Security Practices
+- Input validation
+- XSS prevention
+- CSRF protection
+- Secure authentication
+- Regular security audits
+
+## Version Control
+- Semantic versioning
+- Descriptive commit messages
+- Feature branch workflow
+- Pull request reviews
+- CI/CD pipeline checks
+
+## Special Notes
+- For any frontend / ui related changes or commands always consider that the change needs to be done or command needs to run in `ui` folder.
+- For any backend related changes or commands always consider that the change needs to be done or command needs to run in `api` folder
+- For python requirements file, lets have two file `requirements.in` and `requirements.txt`. `.in` file should have packages that are required (either with version or otherwise), its file in flux. `.txt` file is like froozen file with working packages and exact version numbers. Ensure to have dev dependecies mantained separately so that in prod they dont get installed.
+- Documentation for some of the tech stack is available under `.docs` folder. Refer it as needed.
+- For running any `crew`, `pip`, `uv` or similar backend related terminal commands, always first activate the virtual env or run `activate` command to activate it and then run the command as part of single command separated by &&, as the AI code editor opens a separate terminal window for each command.
+- In place of `pip`, try to use `uv`, if possible.

@@ -1,0 +1,12 @@
+fastapi>=0.100.0
+uvicorn>=0.20.0
+python-dotenv>=1.0.0
+copilotkit
+agno
+openai
+asyncio
+pydantic
+uuid
+google-genai
+googlesearch-python
+pycountry
