@@ -3,12 +3,12 @@ import asyncio
 import json
 import traceback
 import uuid
-from typing import Any, AsyncGenerator, Dict, List, Optional, cast
+from typing import Any, AsyncGenerator, Dict, List, Optional, Set
 
 from copilotkit.agent import Agent as CopilotKitAgentBase
 from copilotkit.action import ActionDict
 from copilotkit.types import Message as CopilotKitMessage, MetaEvent
-from copilotkit.protocol import RuntimeMetaEventName, RuntimeEventTypes, RunStarted, NodeStarted, NodeFinished, RunFinished, RunError
+from copilotkit.protocol import RuntimeMetaEventName, RuntimeEventTypes, RuntimeProtocolEvent, RunStarted, NodeStarted, NodeFinished, RunFinished, RunError, TextMessageEnd
 # Import LIFECYCLE events
 from copilotkit.runloop import (
     copilotkit_run, CopilotKitRunExecution, get_context_execution, queue_put
@@ -52,84 +52,163 @@ class AgnoWorkflowAdapter(CopilotKitAgentBase):
     async def _process_agno_stream_and_queue(self, execution_details: CopilotKitRunExecution) -> None:
         """
         Coroutine that executes Agno workflow's run, maps events, and puts them on the queue.
+        Manages TextMessageStart/End events correctly and prevents duplicate tool events.
         """
         thread_id = execution_details["thread_id"]
         run_id = execution_details["run_id"]
         user_id = execution_details["user_id"]
         workflow_input = execution_details.get(self.input_property, {})
+        agent_name = execution_details["agent_name"] # Use agent_name from execution details
 
-        # Configure Agno workflow instance
-        self.agno_workflow.session_id = thread_id
-        self.agno_workflow.user_id = user_id
-        if self.agno_workflow.storage:
-            self.agno_workflow.read_from_storage() # Load state
+        run_has_finished = False
+        current_text_message_id: Optional[str] = None
+        processed_tool_call_ids: Set[str] = set() # Track processed tool calls
 
-        current_agno_state = self.agno_workflow.session_state or {}
-
-        # Put RunStarted lifecycle event
-        await queue_put(RunStarted(type=RuntimeEventTypes.RUN_STARTED, state=current_agno_state), priority=True)
-        # Put initial NodeStarted
-        await queue_put(NodeStarted(type=RuntimeEventTypes.NODE_STARTED, node_name="agno_workflow_run", state=current_agno_state), priority=True)
-
-
-        # Execute Agno workflow stream
         try:
-            if not hasattr(self.agno_workflow, 'run'):
-                raise NotImplementedError(f"Agno workflow {self.agno_workflow.name} does not have a run method.")
+            # 1. Prepare Agno inputs & state
+            self.agno_workflow.session_id = thread_id
+            self.agno_workflow.user_id = user_id
+            if self.agno_workflow.storage:
+                self.agno_workflow.read_from_storage() # Load state
 
-            # Assuming run returns async iterator when stream=True
+            current_agno_state = self.agno_workflow.session_state or {}
+
+            # 2. Signal Run Start
+            await queue_put(RunStarted(type=RuntimeEventTypes.RUN_STARTED, state=current_agno_state), priority=True)
+            await queue_put(NodeStarted(type=RuntimeEventTypes.NODE_STARTED, node_name="agno_workflow_run", state=current_agno_state), priority=True)
+
+            # 3. Execute Agno workflow stream
+            if not hasattr(self.agno_workflow, 'run'):
+                 raise NotImplementedError(f"Agno workflow {self.agno_workflow.name} does not have a run method.")
+
+            # Assume run returns async iterator when stream=True
             agno_stream = self.agno_workflow.run(stream=True, stream_intermediate_steps=True, **workflow_input)
 
-            # Check if it's actually an async iterator
+            # Handle both sync and async iterators from workflow.run
             if isinstance(agno_stream, AsyncGenerator):
-                 async for agno_chunk in agno_stream:
-                      if not isinstance(agno_chunk, AgnoRunResponse):
-                           print(f"Warning: Received unexpected chunk type from Agno Workflow: {type(agno_chunk)}")
-                           continue
-
-                      if get_context_execution().get("should_exit", False):
-                           print(f"Cancellation requested for workflow run {run_id}")
-                           raise RunCancelledException("Workflow execution cancelled by frontend.")
-
-                      current_agno_state = self.agno_workflow.session_state or {}
-                      protocol_events = map_agno_chunk_to_copilotkit_protocol_events(agno_chunk)
-                      if protocol_events:
-                          await queue_put(*protocol_events)
-
-                      # Map lifecycle events (similar to Agent adapter)
-                      agno_event_type = agno_chunk.event
-                      if agno_event_type == AgnoRunEvent.run_error.value:
-                          await queue_put(RunError(type=RuntimeEventTypes.RUN_ERROR, error=str(agno_chunk.content)))
-                          break
-                      # Add mappings for other relevant AgnoRunEvents to NodeStarted/NodeFinished if needed
+                stream_iterator = agno_stream
+            elif isinstance(agno_stream, (Generator, list, tuple)): # Handle sync iterators/lists
+                # Wrap sync iterator in an async one if needed, or process directly if simple list
+                async def async_wrapper(sync_iter):
+                    for item in sync_iter:
+                        yield item
+                        await asyncio.sleep(0) # Yield control briefly
+                stream_iterator = async_wrapper(agno_stream)
             else:
-                 # Handle case where run is synchronous but returns an iterator
-                 # This might require asyncio.to_thread for the iteration itself
-                 print("Warning: Agno workflow run method did not return an async generator. Streaming might block.")
-                 for agno_chunk in agno_stream: # Assuming sync iterator
-                     if not isinstance(agno_chunk, AgnoRunResponse): continue
-                     if get_context_execution().get("should_exit", False): raise RunCancelledException("Cancelled.")
-                     current_agno_state = self.agno_workflow.session_state or {}
-                     protocol_events = map_agno_chunk_to_copilotkit_protocol_events(agno_chunk)
-                     if protocol_events: await queue_put(*protocol_events)
-                     # map lifecycle events...
+                 # If run returns a single value, wrap it
+                 async def single_item_wrapper(item):
+                      yield item
+                 stream_iterator = single_item_wrapper(agno_stream)
 
 
-            # Put final NodeFinished and RunFinished events
+            async for agno_chunk in stream_iterator:
+                if not isinstance(agno_chunk, AgnoRunResponse):
+                    print(f"Warning: Received unexpected chunk type from Agno Workflow: {type(agno_chunk)}")
+                    continue
+
+                if get_context_execution().get("should_exit", False):
+                    print(f"Cancellation requested for workflow run {run_id}")
+                    raise RunCancelledException("Workflow execution cancelled by frontend.")
+
+                current_agno_state = self.agno_workflow.session_state or {}
+                agno_event_type = agno_chunk.event
+
+                # --- Check if we need to end the current text message ---
+                is_text_content_event = agno_chunk.content and agno_event_type == AgnoRunEvent.run_response.value
+                is_non_text_protocol_event = agno_chunk.tools is not None
+                should_end_text = (not is_text_content_event or is_non_text_protocol_event) and current_text_message_id is not None
+
+                if should_end_text:
+                    await queue_put(TextMessageEnd(type=RuntimeEventTypes.TEXT_MESSAGE_END, messageId=current_text_message_id)) # type: ignore
+                    current_text_message_id = None
+
+                # --- Map chunk to PROTOCOL events ---
+                protocol_events = map_agno_chunk_to_copilotkit_protocol_events(agno_chunk)
+                events_to_queue: List[RuntimeProtocolEvent] = []
+
+                for event in protocol_events:
+                     event_type = event["type"]
+                     if event_type == RuntimeEventTypes.TEXT_MESSAGE_CONTENT:
+                         if current_text_message_id is None:
+                             current_text_message_id = str(uuid.uuid4())
+                             events_to_queue.append(TextMessageStart(type=RuntimeEventTypes.TEXT_MESSAGE_START, messageId=current_text_message_id, parentMessageId=None)) # type: ignore
+                         event["messageId"] = current_text_message_id
+                         events_to_queue.append(event)
+                     elif event_type == RuntimeEventTypes.ACTION_EXECUTION_RESULT:
+                         # End text if ongoing before tool result
+                         if current_text_message_id is not None:
+                            events_to_queue.append(TextMessageEnd(type=RuntimeEventTypes.TEXT_MESSAGE_END, messageId=current_text_message_id))
+                            current_text_message_id = None
+                         # Only add tool sequence if result ID not seen
+                         tool_call_id = event["actionExecutionId"]
+                         if tool_call_id not in processed_tool_call_ids:
+                             tool_info = next((t for t in (agno_chunk.tools or []) if t.get("tool_call_id") == tool_call_id), None)
+                             if tool_info:
+                                 tool_name = tool_info.get("tool_name", "unknown_tool")
+                                 tool_args = tool_info.get("tool_args", {})
+                                 events_to_queue.append(ActionExecutionStart(type=RuntimeEventTypes.ACTION_EXECUTION_START, actionExecutionId=tool_call_id, actionName=tool_name, parentMessageId=None)) # type: ignore
+                                 events_to_queue.append(ActionExecutionArgs(type=RuntimeEventTypes.ACTION_EXECUTION_ARGS, actionExecutionId=tool_call_id, args=json.dumps(tool_args))) # type: ignore
+                                 events_to_queue.append(ActionExecutionEnd(type=RuntimeEventTypes.ACTION_EXECUTION_END, actionExecutionId=tool_call_id)) # type: ignore
+                                 events_to_queue.append(event)
+                                 processed_tool_call_ids.add(tool_call_id)
+
+                # Queue the collected protocol events
+                if events_to_queue:
+                    await queue_put(*events_to_queue)
+
+                # --- Map chunk event to LIFECYCLE events ---
+                significant_lifecycle_event = agno_event_type not in [AgnoRunEvent.run_response.value] # Example
+                if significant_lifecycle_event and current_text_message_id is not None:
+                    await queue_put(TextMessageEnd(type=RuntimeEventTypes.TEXT_MESSAGE_END, messageId=current_text_message_id))
+                    current_text_message_id = None
+
+                node_name = "workflow_step"
+                if agno_event_type == AgnoRunEvent.workflow_started.value: # Use workflow specific events if they exist
+                    await queue_put(NodeStarted(type=RuntimeEventTypes.NODE_STARTED, node_name=node_name, state=current_agno_state))
+                elif agno_event_type == AgnoRunEvent.workflow_completed.value: # Use workflow specific events if they exist
+                    await queue_put(NodeFinished(type=RuntimeEventTypes.NODE_FINISHED, node_name=node_name, state=current_agno_state))
+                # Map other Agno events to NodeStarted/Finished as needed
+                elif agno_event_type == AgnoRunEvent.run_error.value:
+                    raise Exception(str(agno_chunk.content))
+
+            # --- After Loop ---
+            if current_text_message_id is not None: await queue_put(TextMessageEnd(type=RuntimeEventTypes.TEXT_MESSAGE_END, messageId=current_text_message_id))
+            current_agno_state = self.agno_workflow.session_state or {}
             await queue_put(NodeFinished(type=RuntimeEventTypes.NODE_FINISHED, node_name="agno_workflow_run", state=current_agno_state))
             await queue_put(RunFinished(type=RuntimeEventTypes.RUN_FINISHED, state=current_agno_state), priority=True)
+            run_has_finished = True
 
         except RunCancelledException:
+             # (Cancellation handling remains the same)
              print(f"Workflow Run {run_id} cancelled.")
+             if current_text_message_id is not None: await queue_put(TextMessageEnd(type=RuntimeEventTypes.TEXT_MESSAGE_END, messageId=current_text_message_id))
+             current_agno_state = self.agno_workflow.session_state or {}
+             await queue_put(NodeFinished(type=RuntimeEventTypes.NODE_FINISHED, node_name="agno_workflow_run", state=current_agno_state))
              await queue_put(RunFinished(type=RuntimeEventTypes.RUN_FINISHED, state=current_agno_state), priority=True)
+             run_has_finished = True
         except Exception as e:
-            print(f"Error during Agno workflow streaming: {e}")
-            traceback.print_exc()
-            await queue_put(RunError(type=RuntimeEventTypes.RUN_ERROR, error=e))
+             # (Error handling remains the same)
+             print(f"Error during Agno workflow streaming: {e}")
+             traceback.print_exc()
+             if current_text_message_id is not None: await queue_put(TextMessageEnd(type=RuntimeEventTypes.TEXT_MESSAGE_END, messageId=current_text_message_id))
+             current_agno_state = self.agno_workflow.session_state or {}
+             await queue_put(RunError(type=RuntimeEventTypes.RUN_ERROR, error=e), priority=True)
+             run_has_finished = True
         finally:
-            if self.agno_workflow.storage:
-                self.agno_workflow.write_to_storage()
-            print(f"Agno workflow processing finished for run {run_id}")
+             # (Final completion signal and state saving remains the same)
+             if not run_has_finished:
+                  print(f"Agno workflow stream ended unexpectedly for run {run_id}. Signalling RunFinished.")
+                  if current_text_message_id is not None: await queue_put(TextMessageEnd(type=RuntimeEventTypes.TEXT_MESSAGE_END, messageId=current_text_message_id))
+                  current_agno_state = self.agno_workflow.session_state or {}
+                  await queue_put(RunFinished(type=RuntimeEventTypes.RUN_FINISHED, state=current_agno_state), priority=True)
+
+             if self.agno_workflow.storage:
+                  try:
+                      self.agno_workflow.write_to_storage()
+                      print(f"[{agent_name}] Final workflow state saved for thread {thread_id}.")
+                  except Exception as save_err:
+                      print(f"[{agent_name}] Error saving final workflow state for thread {thread_id}: {save_err}")
+             print(f"Agno workflow processing coroutine finished for run {run_id}")
 
     def execute(
         self,

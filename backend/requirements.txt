@@ -7,6 +7,5 @@ openai
 asyncio
 pydantic
 uuid
-google-genai
 googlesearch-python
 pycountry

@@ -3,7 +3,7 @@ import asyncio
 import json
 import traceback
 import uuid
-from typing import Any, AsyncGenerator, Dict, List, Optional, cast
+from typing import Any, AsyncGenerator, Dict, List, Optional, cast, Set
 
 from copilotkit.agent import Agent as CopilotKitAgentBase
 from copilotkit.action import ActionDict
@@ -54,7 +54,7 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
     async def _process_agno_stream_and_queue(self, execution_details: CopilotKitRunExecution) -> None:
         """
         Coroutine that executes Agno agent's arun, maps events, and puts them on the queue.
-        Manages TextMessageStart/End events correctly.
+        Manages TextMessageStart/End events correctly and prevents duplicate tool events.
         """
         thread_id = execution_details["thread_id"]
         run_id = execution_details["run_id"]
@@ -63,123 +63,114 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
         agent_name = execution_details["agent_name"]
 
         run_has_finished = False
-        current_text_message_id: Optional[str] = None # Track the active text message ID
+        current_text_message_id: Optional[str] = None
+        processed_tool_call_ids: Set[str] = set()
 
         try:
-            # 1. Prepare Agno inputs & state
+            # --- Preparation ---
             agno_messages = copilotkit_messages_to_agno(copilotkit_messages)
             last_user_message = agno_messages[-1] if agno_messages and agno_messages[-1].role == "user" else None
-
-            if last_user_message is None:
-                raise ValueError("No user message found to run Agno agent.")
+            if last_user_message is None: raise ValueError("No user message found.")
 
             self.agno_agent.session_id = thread_id
             self.agno_agent.user_id = user_id
-            if self.agno_agent.storage:
-                self.agno_agent.read_from_storage(session_id=thread_id, user_id=user_id)
-
+            if self.agno_agent.storage: self.agno_agent.read_from_storage(session_id=thread_id, user_id=user_id)
             current_agno_state = self.agno_agent.session_state or {}
 
-            # 2. Signal Run Start
             await queue_put(RunStarted(type=RuntimeEventTypes.RUN_STARTED, state=current_agno_state), priority=True)
             await queue_put(NodeStarted(type=RuntimeEventTypes.NODE_STARTED, node_name="agno_run", state=current_agno_state), priority=True)
 
-            # 3. Execute Agno stream and process chunks
-            if not hasattr(self.agno_agent, 'arun'):
-                 raise NotImplementedError(f"Agno agent {self.agno_agent.name} does not have an arun method.")
+            # --- Execute Agno Stream ---
+            if not hasattr(self.agno_agent, 'arun'): raise NotImplementedError("Agent needs arun method.")
 
             agno_stream = await self.agno_agent.arun(
-                message=last_user_message,
-                stream=True,
-                stream_intermediate_steps=True
+                message=last_user_message, stream=True, stream_intermediate_steps=True
             )
 
             async for agno_chunk in agno_stream:
-                if not isinstance(agno_chunk, AgnoRunResponse):
-                    print(f"Warning: Received unexpected chunk type from Agno: {type(agno_chunk)}")
-                    continue
+                if not isinstance(agno_chunk, AgnoRunResponse): continue
+                if get_context_execution().get("should_exit", False): raise RunCancelledException("Cancelled.")
 
-                # Check for cancellation signal via context
-                if get_context_execution().get("should_exit", False):
-                    print(f"Cancellation requested for run {run_id}, stopping Agno iteration.")
-                    raise RunCancelledException("Execution cancelled by frontend.")
-
-                # Get latest state *before* processing chunk
                 current_agno_state = self.agno_agent.session_state or {}
                 agno_event_type = agno_chunk.event
 
-                # --- Check if we need to end the current text message ---
-                # End message if a non-text event occurs (tool call, state change, etc.)
-                # or if the run completes/errors/cancels.
-                is_text_content = agno_chunk.content and agno_event_type == AgnoRunEvent.run_response.value
-                should_end_text = (not is_text_content) and current_text_message_id is not None
-
-                if should_end_text:
-                    await queue_put(TextMessageEnd(type=RuntimeEventTypes.TEXT_MESSAGE_END, messageId=current_text_message_id)) # type: ignore
-                    current_text_message_id = None
-
-                # --- Map chunk to PROTOCOL events ---
                 protocol_events = map_agno_chunk_to_copilotkit_protocol_events(agno_chunk)
-                text_content_event: Optional[TextMessageContent] = None
-                other_protocol_events: List[RuntimeProtocolEvent] = []
+                events_to_queue: List[RuntimeProtocolEvent] = []
+                is_text_chunk = False
 
                 for event in protocol_events:
-                    if event["type"] == RuntimeEventTypes.TEXT_MESSAGE_CONTENT:
-                        text_content_event = cast(TextMessageContent, event)
-                    else:
-                        other_protocol_events.append(event)
+                    event_type = event["type"]
 
-                # --- Handle Text Content Streaming ---
-                if text_content_event:
-                    if current_text_message_id is None:
-                        # Start a new text message
-                        current_text_message_id = str(uuid.uuid4())
-                        await queue_put(TextMessageStart(type=RuntimeEventTypes.TEXT_MESSAGE_START, messageId=current_text_message_id, parentMessageId=None))
+                    if event_type == RuntimeEventTypes.TEXT_MESSAGE_CONTENT:
+                        is_text_chunk = True
+                        if current_text_message_id is None:
+                             # ***highlighted change*** Start message ONCE before the first content chunk
+                            current_text_message_id = str(uuid.uuid4())
+                            events_to_queue.append(TextMessageStart(type=RuntimeEventTypes.TEXT_MESSAGE_START, messageId=current_text_message_id, parentMessageId=None)) # type: ignore
+                        event["messageId"] = current_text_message_id # Assign the ongoing message ID
+                        events_to_queue.append(event)
 
-                    # Send the content chunk for the *current* message
-                    text_content_event["messageId"] = current_text_message_id # Replace placeholder
-                    await queue_put(text_content_event)
+                    elif event_type == RuntimeEventTypes.ACTION_EXECUTION_RESULT:
+                        # ***highlighted change*** Check if text message was ongoing, end it before tool result
+                        if current_text_message_id is not None:
+                            events_to_queue.append(TextMessageEnd(type=RuntimeEventTypes.TEXT_MESSAGE_END, messageId=current_text_message_id))
+                            current_text_message_id = None
 
-                # --- Handle Other Protocol Events (Tools) ---
-                if other_protocol_events:
-                    await queue_put(*other_protocol_events)
+                        tool_call_id = event["actionExecutionId"]
+                        if tool_call_id not in processed_tool_call_ids:
+                            # Find corresponding Start/Args/End events generated by the mapper for this result
+                            start_event = next((e for e in protocol_events if e["type"] == RuntimeEventTypes.ACTION_EXECUTION_START and e["actionExecutionId"] == tool_call_id), None)
+                            args_event = next((e for e in protocol_events if e["type"] == RuntimeEventTypes.ACTION_EXECUTION_ARGS and e["actionExecutionId"] == tool_call_id), None)
+                            end_event = next((e for e in protocol_events if e["type"] == RuntimeEventTypes.ACTION_EXECUTION_END and e["actionExecutionId"] == tool_call_id), None)
 
-                # --- Map chunk event to LIFECYCLE events ---
-                node_name = "agno_step" # Default node name
+                            if start_event and args_event and end_event:
+                                events_to_queue.append(start_event)
+                                events_to_queue.append(args_event)
+                                events_to_queue.append(end_event)
+                                events_to_queue.append(event) # Add the Result event
+                                processed_tool_call_ids.add(tool_call_id)
+                    # Ignore Start, Args, End events here; they are added with the Result
+
+                # Queue the collected protocol events for this chunk
+                if events_to_queue:
+                    await queue_put(*events_to_queue)
+
+                # --- Handle Lifecycle Events ---
+                # ***highlighted change*** End text message if a significant lifecycle event occurs
+                significant_lifecycle_event = agno_event_type not in [AgnoRunEvent.run_response.value, AgnoRunEvent.reasoning_step.value] # Example condition
+                if significant_lifecycle_event and current_text_message_id is not None:
+                     await queue_put(TextMessageEnd(type=RuntimeEventTypes.TEXT_MESSAGE_END, messageId=current_text_message_id))
+                     current_text_message_id = None
+
+                node_name = "agno_step"
+                # (Mapping AgnoRunEvents to NodeStarted/NodeFinished remains the same)
                 if agno_event_type == AgnoRunEvent.reasoning_started.value:
-                     node_name = "reasoning"
-                     await queue_put(NodeStarted(type=RuntimeEventTypes.NODE_STARTED, node_name=node_name, state=current_agno_state))
+                    node_name = "reasoning"
+                    await queue_put(NodeStarted(type=RuntimeEventTypes.NODE_STARTED, node_name=node_name, state=current_agno_state))
                 elif agno_event_type == AgnoRunEvent.reasoning_completed.value:
-                     await queue_put(NodeFinished(type=RuntimeEventTypes.NODE_FINISHED, node_name="reasoning", state=current_agno_state))
+                    await queue_put(NodeFinished(type=RuntimeEventTypes.NODE_FINISHED, node_name="reasoning", state=current_agno_state))
                 elif agno_event_type == AgnoRunEvent.tool_call_started.value:
-                     await queue_put(NodeStarted(type=RuntimeEventTypes.NODE_STARTED, node_name="tool_call", state=current_agno_state))
+                    await queue_put(NodeStarted(type=RuntimeEventTypes.NODE_STARTED, node_name="tool_call", state=current_agno_state))
                 elif agno_event_type == AgnoRunEvent.tool_call_completed.value:
-                     await queue_put(NodeFinished(type=RuntimeEventTypes.NODE_FINISHED, node_name="tool_call", state=current_agno_state))
+                    await queue_put(NodeFinished(type=RuntimeEventTypes.NODE_FINISHED, node_name="tool_call", state=current_agno_state))
                 elif agno_event_type == AgnoRunEvent.updating_memory.value:
-                     await queue_put(NodeStarted(type=RuntimeEventTypes.NODE_STARTED, node_name="memory_update", state=current_agno_state))
-                     await queue_put(NodeFinished(type=RuntimeEventTypes.NODE_FINISHED, node_name="memory_update", state=current_agno_state))
+                    await queue_put(NodeStarted(type=RuntimeEventTypes.NODE_STARTED, node_name="memory_update", state=current_agno_state))
+                    await queue_put(NodeFinished(type=RuntimeEventTypes.NODE_FINISHED, node_name="memory_update", state=current_agno_state))
                 elif agno_event_type == AgnoRunEvent.run_error.value:
-                    print(f"Agno Error Event: {agno_chunk.content}")
                     raise Exception(str(agno_chunk.content))
-                # RunCompleted is handled after the loop
 
             # --- After Loop ---
-            # Ensure any open text message is closed
             if current_text_message_id is not None:
                 await queue_put(TextMessageEnd(type=RuntimeEventTypes.TEXT_MESSAGE_END, messageId=current_text_message_id))
-                current_text_message_id = None
-
-            # Signal Normal Completion
             current_agno_state = self.agno_agent.session_state or {}
             await queue_put(NodeFinished(type=RuntimeEventTypes.NODE_FINISHED, node_name="agno_run", state=current_agno_state))
             await queue_put(RunFinished(type=RuntimeEventTypes.RUN_FINISHED, state=current_agno_state), priority=True)
             run_has_finished = True
 
+        # --- Exception Handling ---
         except RunCancelledException:
             print(f"Run {run_id} cancelled.")
-            # Ensure any open text message is closed
-            if current_text_message_id is not None:
-                await queue_put(TextMessageEnd(type=RuntimeEventTypes.TEXT_MESSAGE_END, messageId=current_text_message_id))
+            if current_text_message_id is not None: await queue_put(TextMessageEnd(type=RuntimeEventTypes.TEXT_MESSAGE_END, messageId=current_text_message_id))
             current_agno_state = self.agno_agent.session_state or {}
             await queue_put(NodeFinished(type=RuntimeEventTypes.NODE_FINISHED, node_name="agno_run", state=current_agno_state))
             await queue_put(RunFinished(type=RuntimeEventTypes.RUN_FINISHED, state=current_agno_state), priority=True)
@@ -187,19 +178,15 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
         except Exception as e:
             print(f"Error during Agno agent streaming: {e}")
             traceback.print_exc()
-             # Ensure any open text message is closed
-            if current_text_message_id is not None:
-                await queue_put(TextMessageEnd(type=RuntimeEventTypes.TEXT_MESSAGE_END, messageId=current_text_message_id))
+            if current_text_message_id is not None: await queue_put(TextMessageEnd(type=RuntimeEventTypes.TEXT_MESSAGE_END, messageId=current_text_message_id))
             current_agno_state = self.agno_agent.session_state or {}
             await queue_put(RunError(type=RuntimeEventTypes.RUN_ERROR, error=e), priority=True)
             run_has_finished = True
+        # --- Finalization ---
         finally:
-            # Ensure RunFinished or RunError is *always* sent if something weird happened
             if not run_has_finished:
                  print(f"Agno stream ended unexpectedly for run {run_id}. Signalling RunFinished.")
-                 # Ensure any open text message is closed
-                 if current_text_message_id is not None:
-                    await queue_put(TextMessageEnd(type=RuntimeEventTypes.TEXT_MESSAGE_END, messageId=current_text_message_id))
+                 if current_text_message_id is not None: await queue_put(TextMessageEnd(type=RuntimeEventTypes.TEXT_MESSAGE_END, messageId=current_text_message_id))
                  current_agno_state = self.agno_agent.session_state or {}
                  await queue_put(RunFinished(type=RuntimeEventTypes.RUN_FINISHED, state=current_agno_state), priority=True)
 
@@ -305,5 +292,5 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
 
     def dict_repr(self) -> Dict[str, Any]:
         base = super().dict_repr()
-        base['type'] = 'agno_agent'
+        base['type'] = 'agno'
         return base
