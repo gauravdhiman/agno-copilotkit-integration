@@ -2,6 +2,7 @@
 import json
 import uuid
 from typing import Any, Dict, List, Optional, Sequence, cast
+from pydantic import BaseModel, Field
 
 from copilotkit.types import Message as CopilotKitMessage
 from copilotkit.protocol import (
@@ -18,7 +19,20 @@ from copilotkit.protocol import (
 
 # Import Agno classes
 from agno.models.message import Message as AgnoMessage
-from agno.run.response import RunResponse as AgnoRunResponse, RunEvent as AgnoRunEvent
+from agno.run.response import (
+    RunResponse as AgnoRunResponse, 
+    RunEvent as AgnoRunEvent
+)
+
+class CopilotKitAgnoProperties(BaseModel):
+    """CopilotKit properties"""
+    actions: List[Any] = Field(default_factory=list)
+
+class CopilotKitAgnoState(Dict[str, Any]):
+    """CopilotKit state"""
+    messages: List[Any] = Field(default_factory=list)
+    copilotkit: CopilotKitAgnoProperties = Field(default_factory=CopilotKitAgnoProperties)
+
 
 # --- Message Conversion ---
 # (copilotkit_messages_to_agno and agno_messages_to_copilotkit remain the same as corrected before)

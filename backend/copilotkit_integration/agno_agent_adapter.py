@@ -39,11 +39,13 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
         self,
         agno_agent_instance: AgnoAgentInternal,
         user_id_property: str = "userId",
+        name=None,
+        description=None,
         **kwargs,
     ):
         super().__init__(
-            name=agno_agent_instance.name or agno_agent_instance.__class__.__name__,
-            description=agno_agent_instance.description,
+            name=name or agno_agent_instance.name or agno_agent_instance.__class__.__name__,
+            description=description or agno_agent_instance.description,
             **kwargs,
         )
         self.agno_agent = agno_agent_instance
@@ -55,6 +57,9 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
         """
         Coroutine that executes Agno agent's arun, maps events, and puts them on the queue.
         Manages TextMessageStart/End events correctly and prevents duplicate tool events.
+        
+        Note this method will be run in separate thread using `copilotkit_run()` and whatever
+        events this will emit will be collected from that thread specific queue by `copilotkit_run()`
         """
         thread_id = execution_details["thread_id"]
         run_id = execution_details["run_id"]
@@ -74,7 +79,10 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
 
             self.agno_agent.session_id = thread_id
             self.agno_agent.user_id = user_id
-            if self.agno_agent.storage: self.agno_agent.read_from_storage(session_id=thread_id, user_id=user_id)
+            print(f"Agent Storage >>> {self.agno_agent.storage}")
+            # if session info is persistent, first load it
+            if self.agno_agent.storage: self.agno_agent.load_session()
+            print(f"Agent Session Info (after db read) >>>> {self.agno_agent.agent_session.to_dict()}")
             current_agno_state = self.agno_agent.session_state or {}
 
             await queue_put(RunStarted(type=RuntimeEventTypes.RUN_STARTED, state=current_agno_state), priority=True)
@@ -83,10 +91,12 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
             # --- Execute Agno Stream ---
             if not hasattr(self.agno_agent, 'arun'): raise NotImplementedError("Agent needs arun method.")
 
+            # Run the Agno agent and collect stream from it.
             agno_stream = await self.agno_agent.arun(
                 message=last_user_message, stream=True, stream_intermediate_steps=True
             )
 
+            #  Now for each chunck in stream, identify the right events to emitt. Map Agno events to Copilotkit events before emitting.
             async for agno_chunk in agno_stream:
                 if not isinstance(agno_chunk, AgnoRunResponse): continue
                 if get_context_execution().get("should_exit", False): raise RunCancelledException("Cancelled.")
@@ -142,11 +152,9 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
                      await queue_put(TextMessageEnd(type=RuntimeEventTypes.TEXT_MESSAGE_END, messageId=current_text_message_id))
                      current_text_message_id = None
 
-                node_name = "agno_step"
                 # (Mapping AgnoRunEvents to NodeStarted/NodeFinished remains the same)
                 if agno_event_type == AgnoRunEvent.reasoning_started.value:
-                    node_name = "reasoning"
-                    await queue_put(NodeStarted(type=RuntimeEventTypes.NODE_STARTED, node_name=node_name, state=current_agno_state))
+                    await queue_put(NodeStarted(type=RuntimeEventTypes.NODE_STARTED, node_name="reasoning", state=current_agno_state))
                 elif agno_event_type == AgnoRunEvent.reasoning_completed.value:
                     await queue_put(NodeFinished(type=RuntimeEventTypes.NODE_FINISHED, node_name="reasoning", state=current_agno_state))
                 elif agno_event_type == AgnoRunEvent.tool_call_started.value:

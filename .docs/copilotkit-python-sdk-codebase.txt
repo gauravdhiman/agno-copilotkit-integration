@@ -1,0 +1,4199 @@
+================================================
+FILE: sdk-python/copilotkit/__init__.py
+================================================
+"""CopilotKit SDK"""
+from .sdk import CopilotKitRemoteEndpoint, CopilotKitContext, CopilotKitSDK, CopilotKitSDKContext
+from .action import Action
+from .langgraph import CopilotKitState
+from .parameter import Parameter
+from .agent import Agent
+from .langgraph_agent import LangGraphAgent
+
+
+
+__all__ = [
+    'CopilotKitRemoteEndpoint', 
+    'CopilotKitSDK',
+    'Action', 
+    'CopilotKitState',    
+    'Parameter',
+    'Agent',
+    'CopilotKitContext',
+    'CopilotKitSDKContext',
+    'CrewAIAgent', # pyright: ignore[reportUnsupportedDunderAll] pylint: disable=undefined-all-variable
+    'LangGraphAgent', # pyright: ignore[reportUnsupportedDunderAll] pylint: disable=undefined-all-variable
+]
+
+
+
+================================================
+FILE: sdk-python/copilotkit/action.py
+================================================
+"""Actions"""
+
+import re
+from inspect import iscoroutinefunction
+from typing import Optional, List, Callable, TypedDict, Any, cast
+from .parameter import Parameter, normalize_parameters
+
+class ActionDict(TypedDict):
+    """Dict representation of an action"""
+    name: str
+    description: str
+    parameters: List[Parameter]
+
+class ActionResultDict(TypedDict):
+    """Dict representation of an action result"""
+    result: Any
+
+class Action:  # pylint: disable=too-few-public-methods
+    """Action class for CopilotKit"""
+    def __init__(
+            self,
+            *,
+            name: str,
+            handler: Callable,
+            description: Optional[str] = None,
+            parameters: Optional[List[Parameter]] = None,
+        ):
+        self.name = name
+        self.description = description
+        self.parameters = parameters
+        self.handler = handler
+
+        if not re.match(r"^[a-zA-Z0-9_-]+$", name):
+            raise ValueError(
+                f"Invalid action name '{name}': " +
+                "must consist of alphanumeric characters, underscores, and hyphens only"
+            )
+
+    async def execute(
+            self,
+            *,
+            arguments: dict
+        ) -> ActionResultDict:
+        """Execute the action"""
+        result = self.handler(**arguments)
+
+        return {
+            "result": await result if iscoroutinefunction(self.handler) else result
+        }
+
+    def dict_repr(self) -> ActionDict:
+        """Dict representation of the action"""
+        return {
+            'name': self.name,
+            'description': self.description or '',
+            'parameters': normalize_parameters(cast(Any, self.parameters)),
+        }
+
+
+
+================================================
+FILE: sdk-python/copilotkit/agent.py
+================================================
+"""Agents"""
+
+import re
+from typing import Optional, List, TypedDict
+from abc import ABC, abstractmethod
+from .types import Message
+from .action import ActionDict
+from .types import MetaEvent
+
+class AgentDict(TypedDict):
+    """Agent dictionary"""
+    name: str
+    description: Optional[str]
+
+class Agent(ABC):
+    """Agent class for CopilotKit"""
+    def __init__(
+            self,
+            *,
+            name: str,
+            description: Optional[str] = None,
+        ):
+        self.name = name
+        self.description = description
+
+        if not re.match(r"^[a-zA-Z0-9_-]+$", name):
+            raise ValueError(
+                f"Invalid agent name '{name}': " +
+                "must consist of alphanumeric characters, underscores, and hyphens only"
+            )
+
+    @abstractmethod
+    def execute( # pylint: disable=too-many-arguments
+        self,
+        *,
+        state: dict,
+        configurable: Optional[dict] = None,
+        messages: List[Message],
+        thread_id: str,
+        actions: Optional[List[ActionDict]] = None,
+        meta_events: Optional[List[MetaEvent]] = None,
+        **kwargs,
+    ):
+        """Execute the agent"""
+
+    @abstractmethod
+    async def get_state(
+        self,
+        *,
+        thread_id: str,
+    ):
+        """Default get_state implementation"""
+        return {
+            "threadId": thread_id or "",
+            "threadExists": False,
+            "state": {},
+            "messages": []
+        }
+
+
+    def dict_repr(self) -> AgentDict:
+        """Dict representation of the action"""
+        return {
+            'name': self.name,
+            'description': self.description or ''
+        }
+
+
+
+================================================
+FILE: sdk-python/copilotkit/exc.py
+================================================
+"""Exceptions for CopilotKit."""
+
+class ActionNotFoundException(Exception):
+    """Exception raised when an action or agent is not found."""
+
+    def __init__(self, name: str):
+        self.name = name
+        super().__init__(f"Action '{name}' not found.")
+
+class AgentNotFoundException(Exception):
+    """Exception raised when an agent is not found."""
+
+    def __init__(self, name: str):
+        self.name = name
+        super().__init__(f"Agent '{name}' not found.")
+
+class ActionExecutionException(Exception):
+    """Exception raised when an action fails to execute."""
+
+    def __init__(self, name: str, error: Exception):
+        self.name = name
+        self.error = error
+        super().__init__(f"Action '{name}' failed to execute: {error}")
+
+class AgentExecutionException(Exception):
+    """Exception raised when an agent fails to execute."""
+
+    def __init__(self, name: str, error: Exception):
+        self.name = name
+        self.error = error
+        super().__init__(f"Agent '{name}' failed to execute: {error}")
+
+
+
+================================================
+FILE: sdk-python/copilotkit/html.py
+================================================
+"""
+HTML templates, used when the info endpoint is accessed from the browser.
+"""
+import json
+from copilotkit.sdk import InfoDict
+
+HEAD_HTML = """
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CopilotKit Remote Endpoint v0.1.12</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 30px;
+        }
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 40px;
+        }
+        h1 {
+            font-size: 2rem;
+            margin: 0;
+        }
+        h2 {
+            font-size: 1.8rem;
+            margin-bottom: 20px;
+        }
+        h3 {
+            font-size: 1.4rem;
+            margin-bottom: 10px;
+        }
+        .version {
+          font-family: 'Courier New', Courier, monospace;
+          font-size: 1.2rem;
+        }
+        .kite-icon {
+            font-size: 38px;
+            margin-right: 16px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+        .card {
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+        }
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            border-radius: 4px;
+            margin-left: 10px;
+            background-color: #dbeafe;
+            color: #1e40af;
+        }
+        pre {
+            background-color: #f1f1f1;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        code {
+            font-family: 'Courier New', Courier, monospace;
+        }
+    </style>
+</head>
+"""
+
+INFO_TEMPLATE= """
+<!DOCTYPE html>
+<html lang="en">
+{head_html}
+<body>
+    <div class="container">
+        <header>
+            <h1><span class="kite-icon">🪁</span>CopilotKit Remote Endpoint <span class="version">(v{version})</span></h1>
+        </header>
+
+        <main>
+            <section>
+                <h2>Actions</h2>
+                <div class="grid">
+                    {action_html}
+                </div>
+            </section>
+            <section>
+                <h2>Agents</h2>
+                <div class="grid">
+                    {agent_html}
+                </div>
+            </section>
+        </main>
+    </div>
+</body>
+</html>
+"""
+
+ACTION_TEMPLATE = """
+<div class="card">
+    <h3>{name}</h3>
+    <p>{description}</p>
+    <h4>Arguments:</h4>
+    <pre><code>{arguments}</code></pre>
+</div>
+"""
+
+AGENT_TEMPLATE = """
+<div class="card">
+    <h3>{name} <span class="badge">{type}</span></h3>
+    <p>{description}</p>
+</div>
+"""
+
+NO_ACTIONS_FOUND_HTML = """
+<div class="card">
+    <p>No actions found</p>
+</div>
+"""
+
+NO_AGENTS_FOUND_HTML = """
+<div class="card">
+    <p>No agents found</p>
+</div>
+"""
+
+def generate_info_html(info: InfoDict) -> str:
+    """
+    Generate HTML for the info endpoint
+    """
+    print(info, flush=True)
+    action_html = ""
+    for action in info["actions"]:
+        action_html += ACTION_TEMPLATE.format(
+            name=action["name"],
+            description=action["description"],
+            arguments=json.dumps(action.get("parameters", []), indent=2),
+        )
+    agent_html = ""
+    for agent in info["agents"]:
+        agent_type = agent.get("type", "Unknown")
+        if agent_type == "langgraph":
+            agent_type = "LangGraph"
+        elif agent_type == "crewai":
+            agent_type = "CrewAI"
+
+        agent_html += AGENT_TEMPLATE.format(
+            name=agent["name"],
+            type=agent_type,
+            description=agent["description"],
+        )
+    return INFO_TEMPLATE.format(
+        head_html=HEAD_HTML,
+        version=info["sdkVersion"],
+        action_html=action_html or NO_ACTIONS_FOUND_HTML,
+        agent_html=agent_html or NO_AGENTS_FOUND_HTML,
+    )
+
+
+
+================================================
+FILE: sdk-python/copilotkit/langchain.py
+================================================
+"""
+copilotkit.langchain is deprecated. Use copilotkit.langgraph instead.
+"""
+import warnings
+from copilotkit.langgraph import (
+  langchain_messages_to_copilotkit,
+  copilotkit_messages_to_langchain,
+  copilotkit_customize_config,
+  copilotkit_exit,
+  copilotkit_emit_state,
+  copilotkit_emit_message,
+  copilotkit_emit_tool_call,
+  copilotkit_interrupt,
+)
+
+warnings.warn(
+    "copilotkit.langchain is deprecated. Use copilotkit.langgraph instead.",
+    DeprecationWarning,
+    stacklevel=2
+)
+
+__all__ = [
+  "langchain_messages_to_copilotkit",
+  "copilotkit_messages_to_langchain",
+  "copilotkit_customize_config",
+  "copilotkit_exit",
+  "copilotkit_emit_state",
+  "copilotkit_emit_message",
+  "copilotkit_emit_tool_call",
+  "copilotkit_interrupt",
+]
+
+
+
+================================================
+FILE: sdk-python/copilotkit/langgraph.py
+================================================
+"""
+LangChain specific utilities for CopilotKit
+"""
+
+import uuid
+import json
+import warnings
+import asyncio
+from typing import List, Optional, Any, Union, Dict, Callable, cast
+from typing_extensions import TypedDict
+from langgraph.graph import MessagesState
+
+
+from langchain_core.messages import (
+    HumanMessage,
+    SystemMessage,
+    BaseMessage,
+    AIMessage,
+    ToolMessage
+)
+from langchain_core.runnables import RunnableConfig
+from langchain_core.callbacks.manager import adispatch_custom_event
+from langgraph.types import interrupt
+
+from .types import Message, IntermediateStateConfig
+from .logging import get_logger
+
+logger = get_logger(__name__)
+
+
+class CopilotKitProperties(TypedDict):
+    """CopilotKit state"""
+    actions: List[Any]
+
+class CopilotKitState(MessagesState):
+    """CopilotKit state"""
+    copilotkit: CopilotKitProperties
+
+
+def copilotkit_messages_to_langchain(
+        use_function_call: bool = False
+    ) -> Callable[[List[Message]], List[BaseMessage]]:
+    """
+    Convert CopilotKit messages to LangChain messages
+    """
+    def _copilotkit_messages_to_langchain(messages: List[Message]) -> List[BaseMessage]:
+        result = []
+        processed_action_executions = set()
+        for message in cast(Any, messages):
+            if message["type"] == "TextMessage":
+                if message["role"] == "user":
+                    result.append(HumanMessage(content=message["content"], id=message["id"]))
+                elif message["role"] == "system":
+                    result.append(SystemMessage(content=message["content"], id=message["id"]))
+                elif message["role"] == "assistant":
+                    result.append(AIMessage(content=message["content"], id=message["id"]))
+            elif message["type"] == "ActionExecutionMessage":
+                if use_function_call:
+                    result.append(AIMessage(
+                        id=message["id"],
+                        content="",
+                        additional_kwargs={
+                            'function_call':{
+                                'name': message["name"],
+                                'arguments': json.dumps(message["arguments"]),
+                            }
+                        } 
+                    ))
+                else:
+                    # convert multiple tool calls to a single message
+                    message_id = message.get("parentMessageId")
+                    if message_id is None:
+                        message_id = message["id"]
+
+                    if message_id in processed_action_executions:
+                        continue
+
+                    processed_action_executions.add(message_id)
+
+                    all_tool_calls = []
+
+                    # Find all tool calls for this message
+                    for msg in messages:
+                        if msg.get("parentMessageId", None) == message_id or msg["id"] == message_id:
+                            all_tool_calls.append(msg)
+
+                    tool_calls = [{
+                        "name": t["name"],
+                        "args": t["arguments"],
+                        "id": t["id"],
+                    } for t in all_tool_calls]
+
+                    result.append(
+                        AIMessage(
+                            id=message_id,
+                            content="",
+                            tool_calls=tool_calls
+                        )
+                    )
+
+            elif message["type"] == "ResultMessage":
+                result.append(ToolMessage(
+                    id=message["id"],
+                    content=message["result"],
+                    name=message["actionName"],
+                    tool_call_id=message["actionExecutionId"]
+                ))
+
+        return result
+
+    return _copilotkit_messages_to_langchain
+
+
+def langchain_messages_to_copilotkit(
+        messages: List[BaseMessage]
+    ) -> List[Message]:
+    """
+    Convert LangChain messages to CopilotKit messages
+    """
+    result = []
+    tool_call_names = {}
+
+    for message in messages:
+        if isinstance(message, AIMessage):
+            for tool_call in message.tool_calls or []:
+                tool_call_names[tool_call["id"]] = tool_call["name"]
+
+    for message in messages:
+        content = None
+
+        if hasattr(message, "content"):
+            content = message.content
+
+            # Check if content is a list and use the first element
+            if isinstance(content, list):
+                content = content[0]
+
+            # Anthropic models return a dict with a "text" key
+            if isinstance(content, dict):
+                content = content.get("text", "")
+
+        if isinstance(message, HumanMessage):
+            result.append({
+                "role": "user",
+                "content": content,
+                "id": message.id,
+            })
+        elif isinstance(message, SystemMessage):
+            result.append({
+                "role": "system",
+                "content": content,
+                "id": message.id,
+            })
+        elif isinstance(message, AIMessage):
+            if message.tool_calls:
+                for tool_call in message.tool_calls:
+                    result.append({
+                        "id": tool_call["id"],
+                        "name": tool_call["name"],
+                        "arguments": tool_call["args"],
+                        "parentMessageId": message.id,
+                    })
+            else:
+                result.append({
+                    "role": "assistant",
+                    "content": content,
+                    "id": message.id,
+                    "parentMessageId": message.id,
+                })
+        elif isinstance(message, ToolMessage):
+            result.append({
+                "actionExecutionId": message.tool_call_id,
+                "actionName": tool_call_names.get(message.tool_call_id, message.name or ""),
+                "result": content,
+                "id": message.id,
+            })
+
+    # Create a dictionary to map message ids to their corresponding messages
+    results_dict = {msg["actionExecutionId"]: msg for msg in result if "actionExecutionId" in msg}
+
+
+    # since we are splitting multiple tool calls into multiple messages,
+    # we need to reorder the corresponding result messages to be after the tool call
+    reordered_result = []
+
+    for msg in result:
+
+        # add all messages that are not tool call results
+        if not "actionExecutionId" in msg:
+            reordered_result.append(msg)
+
+        # if the message is a tool call, also add the corresponding result message
+        # immediately after the tool call
+        if "arguments" in msg:
+            msg_id = msg["id"]
+            if msg_id in results_dict:
+                reordered_result.append(results_dict[msg_id])
+            else:
+                logger.warning("Tool call result message not found for id: %s", msg_id)
+
+    return reordered_result
+
+def copilotkit_customize_config(
+        base_config: Optional[RunnableConfig] = None,
+        *,
+        emit_messages: Optional[bool] = None,
+        emit_tool_calls: Optional[Union[bool, str, List[str]]] = None,
+        emit_intermediate_state: Optional[List[IntermediateStateConfig]] = None,
+        emit_all: Optional[bool] = None, # deprecated
+    ) -> RunnableConfig:
+    """
+    Customize the LangGraph configuration for use in CopilotKit.
+
+    To install the CopilotKit SDK, run:
+
+    ```bash
+    pip install copilotkit
+    ```
+
+    ### Examples
+
+    Disable emitting messages and tool calls:
+    
+    ```python
+    from copilotkit.langgraph import copilotkit_customize_config
+
+    config = copilotkit_customize_config(
+        config,
+        emit_messages=False,
+        emit_tool_calls=False
+    )
+    ```
+
+    To emit a tool call as streaming LangGraph state, pass the destination key in state,
+    the tool name and optionally the tool argument. (If you don't pass the argument name,
+    all arguments are emitted under the state key.)
+
+    ```python
+    from copilotkit.langgraph import copilotkit_customize_config
+
+    config = copilotkit_customize_config(
+        config,
+        emit_intermediate_state=[
+           {
+                "state_key": "steps",
+                "tool": "SearchTool",
+                "tool_argument": "steps"
+            },
+        ]
+    )
+    ```
+
+    Parameters
+    ----------
+    base_config : Optional[RunnableConfig]
+        The LangChain/LangGraph configuration to customize. Pass None to make a new configuration.
+    emit_messages : Optional[bool]
+        Configure how messages are emitted. By default, all messages are emitted. Pass False to
+        disable emitting messages.
+    emit_tool_calls : Optional[Union[bool, str, List[str]]]
+        Configure how tool calls are emitted. By default, all tool calls are emitted. Pass False to
+        disable emitting tool calls. Pass a string or list of strings to emit only specific tool calls.
+    emit_intermediate_state : Optional[List[IntermediateStateConfig]]
+        Lets you emit tool calls as streaming LangGraph state.
+
+    Returns
+    -------
+    RunnableConfig
+        The customized LangGraph configuration.
+    """
+    if emit_all is not None:
+        warnings.warn(
+            "The `emit_all` parameter is deprecated and will be removed in a future version. "
+            "CopilotKit will now emit all messages and tool calls by default.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+    metadata = base_config.get("metadata", {}) if base_config else {}
+
+    if emit_all is True:
+        metadata["copilotkit:emit-tool-calls"] = True
+        metadata["copilotkit:emit-messages"] = True
+    else:
+        if emit_tool_calls is not None:
+            metadata["copilotkit:emit-tool-calls"] = emit_tool_calls
+        if emit_messages is not None:
+            metadata["copilotkit:emit-messages"] = emit_messages
+
+    if emit_intermediate_state:
+        metadata["copilotkit:emit-intermediate-state"] = emit_intermediate_state
+
+    base_config = base_config or {}
+
+    return {
+        **base_config,
+        "metadata": metadata
+    }
+
+
+async def copilotkit_exit(config: RunnableConfig):
+    """
+    Exits the current agent after the run completes. Calling copilotkit_exit() will
+    not immediately stop the agent. Instead, it signals to CopilotKit to stop the agent after
+    the run completes.
+
+    ### Examples
+
+    ```python
+    from copilotkit.langgraph import copilotkit_exit
+
+    def my_node(state: Any):
+        await copilotkit_exit(config)
+        return state
+    ```
+
+    Parameters
+    ----------
+    config : RunnableConfig
+        The LangGraph configuration.
+
+    Returns
+    -------
+    Awaitable[bool]
+        Always return True.
+    """
+
+    await adispatch_custom_event(
+        "copilotkit_exit",
+        {},
+        config=config,
+    )
+    await asyncio.sleep(0.02)
+
+    return True
+
+async def copilotkit_emit_state(config: RunnableConfig, state: Any):
+    """
+    Emits intermediate state to CopilotKit. Useful if you have a longer running node and you want to
+    update the user with the current state of the node.
+
+    ### Examples
+
+    ```python
+    from copilotkit.langgraph import copilotkit_emit_state
+
+    for i in range(10):
+        await some_long_running_operation(i)
+        await copilotkit_emit_state(config, {"progress": i})
+    ```
+
+    Parameters
+    ----------
+    config : RunnableConfig
+        The LangGraph configuration.
+    state : Any
+        The state to emit (Must be JSON serializable).
+
+    Returns
+    -------
+    Awaitable[bool]
+        Always return True.
+    """
+
+    await adispatch_custom_event(
+        "copilotkit_manually_emit_intermediate_state",
+        state,
+        config=config,
+    )
+    await asyncio.sleep(0.02)
+
+    return True
+
+async def copilotkit_emit_message(config: RunnableConfig, message: str):
+    """
+    Manually emits a message to CopilotKit. Useful in longer running nodes to update the user.
+    Important: You still need to return the messages from the node.
+
+    ### Examples
+
+    ```python
+    from copilotkit.langgraph import copilotkit_emit_message
+
+    message = "Step 1 of 10 complete"
+    await copilotkit_emit_message(config, message)
+
+    # Return the message from the node
+    return {
+        "messages": [AIMessage(content=message)]
+    }
+    ```
+
+    Parameters
+    ----------
+    config : RunnableConfig
+        The LangGraph configuration.
+    message : str
+        The message to emit.
+
+    Returns
+    -------
+    Awaitable[bool]
+        Always return True.
+    """
+    await adispatch_custom_event(
+        "copilotkit_manually_emit_message",
+        {
+            "message": message,
+            "message_id": str(uuid.uuid4()),
+            "role": "assistant"
+        },
+        config=config,
+    )
+    await asyncio.sleep(0.02)
+
+    return True
+
+
+async def copilotkit_emit_tool_call(config: RunnableConfig, *, name: str, args: Dict[str, Any]):
+    """
+    Manually emits a tool call to CopilotKit.
+
+    ```python
+    from copilotkit.langgraph import copilotkit_emit_tool_call
+
+    await copilotkit_emit_tool_call(config, name="SearchTool", args={"steps": 10})
+    ```
+
+    Parameters
+    ----------
+    config : RunnableConfig
+        The LangGraph configuration.
+    name : str
+        The name of the tool to emit.
+    args : Dict[str, Any]
+        The arguments to emit.
+
+    Returns
+    -------
+    Awaitable[bool]
+        Always return True.
+    """
+
+    await adispatch_custom_event(
+        "copilotkit_manually_emit_tool_call",
+        {
+            "name": name,
+            "args": args,
+            "id": str(uuid.uuid4())
+        },
+        config=config,
+    )
+    await asyncio.sleep(0.02)
+
+    return True
+
+def copilotkit_interrupt(
+        message: Optional[str] = None,
+        action: Optional[str] = None,
+        args: Optional[Dict[str, Any]] = None
+):
+    if message is None and action is None:
+        raise ValueError('Either message or action (and optional arguments) must be provided')
+
+    interrupt_message = None
+    interrupt_values = None
+    answer = None
+
+    if message is not None:
+        interrupt_values = message
+        interrupt_message = AIMessage(content=message, id=str(uuid.uuid4()))
+    else:
+        tool_id = str(uuid.uuid4())
+        interrupt_message = AIMessage(
+                content="",
+                tool_calls=[{
+                    "id": tool_id,
+                    "name": action,
+                    "args": args or {}
+                }]
+            )
+        interrupt_values = {
+            "action": action,
+            "args": args or {}
+        }
+
+    response = interrupt({
+        "__copilotkit_interrupt_value__": interrupt_values,
+        "__copilotkit_messages__": [interrupt_message]
+    })
+    answer = response.content
+
+    return answer, [interrupt_message, response]
+
+
+
+================================================
+FILE: sdk-python/copilotkit/langgraph_agent.py
+================================================
+"""LangGraph agent for CopilotKit"""
+
+import uuid
+import json
+from typing import Optional, List, Callable, Any, cast, Union, TypedDict, Literal
+from typing_extensions import NotRequired
+
+from langgraph.graph.graph import CompiledGraph
+from langgraph.types import Command
+from langchain.load.dump import dumps as langchain_dumps
+from langchain.schema import BaseMessage, SystemMessage
+from langchain_core.runnables import RunnableConfig, ensure_config
+from langchain_core.messages import RemoveMessage
+
+from partialjson.json_parser import JSONParser
+
+from .types import Message, MetaEvent
+from .utils import filter_by_schema_keys
+from .langgraph import copilotkit_messages_to_langchain, langchain_messages_to_copilotkit
+from .action import ActionDict
+from .agent import Agent
+from .logging import get_logger
+
+logger = get_logger(__name__)
+
+class CopilotKitConfig(TypedDict):
+    """
+    CopilotKit config for LangGraphAgent
+
+    This is used for advanced cases where you want to customize how CopilotKit interacts with
+    LangGraph.
+
+    ```python
+    # Function signatures:
+    def merge_state(
+        *,
+        state: dict,
+        messages: List[BaseMessage],
+        actions: List[Any],
+        agent_name: str
+    ):
+        # ...implementation...
+
+    def convert_messages(messages: List[Message]):
+        # ...implementation...
+    ```
+
+    Parameters
+    ----------
+    merge_state : Callable
+        This function lets you customize how CopilotKit merges the agent state.
+    convert_messages : Callable
+        Use this function to customize how CopilotKit converts its messages to LangChain messages.`
+    """
+    merge_state: NotRequired[Callable]
+    convert_messages: NotRequired[Callable]
+
+def langgraph_default_merge_state( # pylint: disable=unused-argument
+        *,
+        state: dict,
+        messages: List[BaseMessage],
+        actions: List[Any],
+        agent_name: str
+    ):
+    """Default merge state for LangGraph"""
+    if len(messages) > 0 and isinstance(messages[0], SystemMessage):
+        # remove system message
+        messages = messages[1:]
+
+    existing_messages = state.get("messages", [])
+    existing_message_ids = {message.id for message in existing_messages}
+    message_ids = {message.id for message in messages}
+    removed_messages = []
+    if len(messages) < len(existing_messages):
+        # messages were removed
+        removed_messages = [RemoveMessage(id=existing_message.id) for existing_message in existing_messages if existing_message.id not in message_ids]
+
+    new_messages = removed_messages + [message for message in messages if message.id not in existing_message_ids]
+
+    return {
+        **state,
+        "messages": new_messages,
+        "copilotkit": {
+            "actions": actions
+        }
+    }
+
+class LangGraphAgent(Agent):
+    """
+    LangGraphAgent lets you define your agent for use with CopilotKit.
+
+    To install, run:
+
+    ```bash
+    pip install copilotkit
+    ```
+
+    ### Examples
+
+    Every agent must have the `name` and `graph` properties defined. An optional `description` 
+    can also be provided. This is used when CopilotKit is dynamically routing requests to the 
+    agent.
+
+    ```python
+    from copilotkit import LangGraphAgent
+
+    LangGraphAgent(
+        name="email_agent",
+        description="This agent sends emails",
+        graph=graph,
+    )
+    ```
+
+    If you have a custom LangGraph/LangChain config that you want to use with the agent, you can 
+    pass it in as the `langgraph_config` parameter.
+
+    ```python
+    LangGraphAgent(
+        ...
+        langgraph_config=config,
+    )
+    ```
+
+    Parameters
+    ----------
+    name : str
+        The name of the agent.
+    graph : CompiledGraph
+        The LangGraph graph to use with the agent.
+    description : Optional[str]
+        The description of the agent.
+    langgraph_config : Optional[RunnableConfig]
+        The LangGraph/LangChain config to use with the agent. 
+    copilotkit_config : Optional[CopilotKitConfig]
+        The CopilotKit config to use with the agent.
+    """
+    def __init__(
+            self,
+            *,
+            name: str,
+            graph: Optional[CompiledGraph] = None,
+            description: Optional[str] = None,
+            langgraph_config:  Union[Optional[RunnableConfig], dict] = None,
+            copilotkit_config: Optional[CopilotKitConfig] = None,
+
+            # deprecated - use langgraph_config instead
+            config: Union[Optional[RunnableConfig], dict] = None,
+            # deprecated - use graph instead
+            agent: Optional[CompiledGraph] = None,
+            # deprecated - use copilotkit_config instead
+            merge_state: Optional[Callable] = None,
+
+        ):
+        if config is not None:
+            logger.warning("Warning: config is deprecated, use langgraph_config instead")
+
+        if agent is not None:
+            logger.warning("Warning: agent is deprecated, use graph instead")
+
+        if merge_state is None:
+            logger.warning("Warning: merge_state is deprecated, use copilotkit_config instead")
+
+        if graph is None and agent is None:
+            raise ValueError("graph must be provided")
+
+        super().__init__(
+            name=name,
+            description=description,
+        )
+
+        self.merge_state = None
+
+        if copilotkit_config is not None:
+            self.merge_state = copilotkit_config.get("merge_state")
+        if not self.merge_state and merge_state is not None:
+            self.merge_state = merge_state
+        if not self.merge_state:
+            self.merge_state = langgraph_default_merge_state
+
+        self.convert_messages = (
+            copilotkit_config.get("convert_messages")
+            if copilotkit_config
+            else None
+        ) or copilotkit_messages_to_langchain(use_function_call=False)
+
+        self.langgraph_config = langgraph_config or config
+
+        self.graph = cast(CompiledGraph, graph or agent)
+        self.active_interrupt_event = False
+
+    def _emit_state_sync_event(
+            self,
+            *,
+            thread_id: str,
+            run_id: str,
+            node_name: str,
+            state: dict,
+            running: bool,
+            active: bool,
+            include_messages: bool = False
+        ):
+        # First handle messages as before
+        if not include_messages:
+            state = {
+                k: v for k, v in state.items() if k != "messages"
+            }
+        else:
+            state = {
+                **state,
+                "messages": langchain_messages_to_copilotkit(state.get("messages", []))
+            }
+
+        # Filter by schema keys if available
+        state = self.filter_state_on_schema_keys(state, 'output')
+
+        return langchain_dumps({
+            "event": "on_copilotkit_state_sync",
+            "thread_id": thread_id,
+            "run_id": run_id,
+            "agent_name": self.name,
+            "node_name": node_name,
+            "active": active,
+            "state": state,
+            "running": running,
+            "role": "assistant"
+        })
+
+    def execute( # pylint: disable=too-many-arguments            
+        self,
+        *,
+        state: dict,
+        configurable: Optional[dict] = None,
+        messages: List[Message],
+        thread_id: str,
+        actions: Optional[List[ActionDict]] = None,
+        meta_events: Optional[List[MetaEvent]] = None,
+        **kwargs
+    ):
+        node_name = kwargs.get("node_name")
+
+        return self._stream_events(
+            state=state,
+            configurable=configurable,
+            messages=messages,
+            actions=actions,
+            thread_id=thread_id,
+            node_name=node_name,
+            meta_events=meta_events
+        )
+
+    async def _stream_events( # pylint: disable=too-many-locals
+            self,
+            *,
+            state: Any,
+            configurable: Optional[dict] = None,
+            messages: List[Message],
+            thread_id: str,
+            actions: Optional[List[ActionDict]] = None,
+            node_name: Optional[str] = None,
+            meta_events: Optional[List[MetaEvent]] = None,
+        ):
+
+        config = ensure_config(cast(Any, self.langgraph_config.copy()) if self.langgraph_config else {}) # pylint: disable=line-too-long
+        config["configurable"] = {**config.get("configurable", {}), **(configurable or {})}
+        config["configurable"]["thread_id"] = thread_id
+
+        agent_state = await self.graph.aget_state(config)
+        state["messages"] = agent_state.values.get("messages", [])
+        langchain_messages = self.convert_messages(messages)
+        state = cast(Callable, self.merge_state)(
+            state=state,
+            messages=langchain_messages,
+            actions=actions,
+            agent_name=self.name
+        )
+
+        # Handle meta events for interrupts
+        interrupt_from_meta_events = next((ev for ev in (meta_events or []) if ev.get("name") == "LangGraphInterruptEvent"), None)
+        resume_input = None
+
+         # An active interrupt event that runs through messages. Use latest message as response
+        if self.active_interrupt_event and interrupt_from_meta_events is None:
+            resume_input = Command(resume=langchain_messages[-1])
+
+        if interrupt_from_meta_events and "response" in interrupt_from_meta_events:
+            resume_input = Command(resume=interrupt_from_meta_events["response"])
+
+        mode = "continue" if thread_id and node_name != "__end__" and node_name is not None else "start"
+        thread_id = thread_id or str(uuid.uuid4())
+        config["configurable"]["thread_id"] = thread_id
+
+        if mode == "continue" and self.active_interrupt_event is False:
+            await self.graph.aupdate_state(config, state, as_node=node_name)
+
+        # Before running the stream again, always flush status of active interrupt
+        self.active_interrupt_event = False
+
+        streaming_state_extractor = _StreamingStateExtractor([])
+        initial_state = state if mode == "start" else None
+        prev_node_name = None
+        emit_intermediate_state_until_end = None
+        should_exit = False
+        manually_emitted_state = None
+        thread_id = cast(Any, config)["configurable"]["thread_id"]
+
+        # Use provided resume_input or fallback to initial_state
+        stream_input = resume_input if resume_input else initial_state
+
+        # Get the output and input schema keys the user has allowed for this graph
+        input_keys, output_keys, config_keys = self.get_schema_keys(config)
+        self.output_schema_keys = output_keys
+        self.input_schema_keys = input_keys
+
+        stream_input = self.filter_state_on_schema_keys(stream_input, 'input')
+        config["configurable"] = filter_by_schema_keys(config["configurable"], config_keys)
+        async for event in self.graph.astream_events(stream_input, config, version="v2"):
+            current_node_name = event.get("name")
+            event_type = event.get("event")
+            run_id = event.get("run_id")
+            metadata = event.get("metadata", {})
+
+            interrupt_event = (
+                event["data"].get("chunk", {}).get("__interrupt__", None)
+                if (
+                    isinstance(event.get("data"), dict) and 
+                    isinstance(event["data"].get("chunk"), dict)
+                )
+                else None
+            )
+            if interrupt_event:
+                self.active_interrupt_event = True
+                value = interrupt_event[0].value
+                if not isinstance(value, str) and "__copilotkit_interrupt_value__" in value:
+                    ev_value = value["__copilotkit_interrupt_value__"]
+                    yield langchain_dumps({
+                        "event": "on_copilotkit_interrupt",
+                        "data": { "value": ev_value if isinstance(ev_value, str) else json.dumps(ev_value), "messages": langchain_messages_to_copilotkit(value["__copilotkit_messages__"]) }
+                    }) + "\n"
+                else:
+                    yield langchain_dumps({
+                        "event": "on_interrupt",
+                        "value": value if isinstance(value, str) else json.dumps(value)
+                    }) + "\n"
+                continue
+
+            should_exit = should_exit or (
+                event_type == "on_custom_event" and
+                event["name"] == "copilotkit_exit"
+            )
+
+            emit_intermediate_state = metadata.get("copilotkit:emit-intermediate-state")
+            manually_emit_intermediate_state = (
+                event_type == "on_custom_event" and
+                event["name"] == "copilotkit_manually_emit_intermediate_state"
+            )
+
+
+            # we only want to update the node name under certain conditions
+            # since we don't need any internal node names to be sent to the frontend
+            if current_node_name in self.graph.nodes.keys():
+                node_name = current_node_name
+
+            # we don't have a node name yet, so we can't update the state
+            if node_name is None:
+                continue
+
+            exiting_node = node_name == current_node_name and event_type == "on_chain_end"
+
+            if exiting_node:
+                manually_emitted_state = None
+
+            if manually_emit_intermediate_state:
+                manually_emitted_state = cast(Any, event["data"])
+                yield self._emit_state_sync_event(
+                    thread_id=thread_id,
+                    run_id=run_id,
+                    node_name=node_name,
+                    state=manually_emitted_state,
+                    running=True,
+                    active=True
+                ) + "\n"
+                continue
+
+
+            if emit_intermediate_state and emit_intermediate_state_until_end is None:
+                emit_intermediate_state_until_end = node_name
+
+            if emit_intermediate_state and event_type == "on_chat_model_start":
+                # reset the streaming state extractor
+                streaming_state_extractor = _StreamingStateExtractor(emit_intermediate_state)
+
+            updated_state = manually_emitted_state or (await self.graph.aget_state(config)).values
+
+            if emit_intermediate_state and event_type == "on_chat_model_stream":
+                streaming_state_extractor.buffer_tool_calls(event)
+
+            if emit_intermediate_state_until_end is not None:
+                updated_state = {
+                    **updated_state,
+                    **streaming_state_extractor.extract_state()
+                }
+
+            if (not emit_intermediate_state and
+                current_node_name == emit_intermediate_state_until_end and
+                event_type == "on_chain_end"):
+                # stop emitting function call state
+                emit_intermediate_state_until_end = None
+
+            # we send state sync events when:
+            #   a) the state has changed
+            #   b) the node has changed
+            #   c) the node is ending
+            if updated_state != state or prev_node_name != node_name or exiting_node:
+                state = updated_state
+                prev_node_name = node_name
+                yield self._emit_state_sync_event(
+                    thread_id=thread_id,
+                    run_id=run_id,
+                    node_name=node_name,
+                    state=state,
+                    running=True,
+                    active=not exiting_node
+                ) + "\n"
+
+            yield langchain_dumps(event) + "\n"
+
+        state = await self.graph.aget_state(config)
+        tasks = state.tasks
+        interrupts = tasks[0].interrupts if tasks and len(tasks) > 0 else None
+        node_name = node_name if interrupts else list(state.metadata["writes"].keys())[0]
+        is_end_node = state.next == () and not interrupts
+
+        yield self._emit_state_sync_event(
+            thread_id=thread_id,
+            run_id=run_id,
+            node_name=cast(str, node_name) if not is_end_node else "__end__",
+            state=state.values,
+            running=not should_exit,
+            # at this point, the node is ending so we set active to false
+            active=False,
+            # sync messages at the end of the run
+            include_messages=True
+        ) + "\n"
+
+    async def get_state(
+        self,
+        *,
+        thread_id: str,
+    ):
+        if not thread_id:
+            return {
+                "threadId": "",
+                "threadExists": False,
+                "state": {},
+                "messages": []
+            }
+
+        config = ensure_config(cast(Any, self.langgraph_config.copy()) if self.langgraph_config else {}) # pylint: disable=line-too-long
+        config["configurable"] = config.get("configurable", {})
+        config["configurable"]["thread_id"] = thread_id
+
+        state = {**(await self.graph.aget_state(config)).values}
+        if state == {}:
+            return {
+                "threadId": thread_id or "",
+                "threadExists": False,
+                "state": {},
+                "messages": []
+            }
+
+        messages = langchain_messages_to_copilotkit(state.get("messages", []))
+        del state["messages"]
+
+        return {
+            "threadId": thread_id,
+            "threadExists": True,
+            "state": state,
+            "messages": messages
+        }
+
+    def dict_repr(self):
+        super_repr = super().dict_repr()
+        return {
+            **super_repr,
+            'type': 'langgraph'
+        }
+
+    def get_schema_keys(self, config):
+        CONSTANT_KEYS = ['copilotkit', 'messages']
+        CONSTANT_CONFIG_KEYS = ['checkpoint_id', 'checkpoint_ns', 'thread_id']
+        try:
+            input_schema = self.graph.get_input_jsonschema(config)
+            output_schema = self.graph.get_output_jsonschema(config)
+            input_schema_keys = list(input_schema["properties"].keys())
+            output_schema_keys = list(output_schema["properties"].keys())
+
+            try:
+                schema_dict = self.graph.config_schema().schema()
+                configurable_schema = schema_dict["$defs"]["Configurable"]
+                config_schema_keys = list(configurable_schema["properties"].keys())
+
+                # If only constant keys are present, it means no schema was passed, we allow everything
+                if set(config_schema_keys) == set(CONSTANT_CONFIG_KEYS):
+                    config_schema_keys = None
+            except:
+                config_schema_keys = None
+
+            # We add "copilotkit" and "messages" as they are always sent and received.
+            for key in CONSTANT_KEYS:
+                if key not in input_schema_keys:
+                    input_schema_keys.append(key)
+                if key not in output_schema_keys:
+                    output_schema_keys.append(key)
+
+            return input_schema_keys, output_schema_keys, config_schema_keys
+        except Exception:
+            return None
+
+    def filter_state_on_schema_keys(self, state, schema_type: Literal["input", "output"]):
+        try:
+            schema_keys_name = f"{schema_type}_schema_keys"
+            if hasattr(self, schema_keys_name) and getattr(self, schema_keys_name):
+                return filter_by_schema_keys(state, getattr(self, schema_keys_name))
+        except Exception:
+            return state
+
+
+class _StreamingStateExtractor:
+    def __init__(self, emit_intermediate_state: List[dict]):
+        self.emit_intermediate_state = emit_intermediate_state
+        self.tool_call_buffer = {}
+        self.current_tool_call = None
+
+        self.previously_parsable_state = {}
+
+    def buffer_tool_calls(self, event: Any):
+        """Buffer the tool calls"""
+        if len(event["data"]["chunk"].tool_call_chunks) > 0:
+            chunk = event["data"]["chunk"].tool_call_chunks[0]
+            if chunk["name"] is not None:
+                self.current_tool_call = chunk["name"]
+                self.tool_call_buffer[self.current_tool_call] = chunk["args"]
+            elif self.current_tool_call is not None:
+                self.tool_call_buffer[self.current_tool_call] = (
+                    self.tool_call_buffer[self.current_tool_call] + chunk["args"]
+                )
+
+    def get_emit_state_config(self, current_tool_name):
+        """Get the emit state config"""
+
+        for config in self.emit_intermediate_state:
+            state_key = config.get("state_key")
+            tool = config.get("tool")
+            tool_argument = config.get("tool_argument")
+
+            if current_tool_name == tool:
+                return (tool_argument, state_key)
+
+        return (None, None)
+
+
+    def extract_state(self):
+        """Extract the streaming state"""
+        parser = JSONParser()
+
+        state = {}
+
+        for key, value in self.tool_call_buffer.items():
+            argument_name, state_key = self.get_emit_state_config(key)
+
+            if state_key is None:
+                continue
+
+            try:
+                parsed_value = parser.parse(value)
+            except Exception as _exc: # pylint: disable=broad-except
+                if key in self.previously_parsable_state:
+                    parsed_value = self.previously_parsable_state[key]
+                else:
+                    continue
+
+            self.previously_parsable_state[key] = parsed_value
+
+            if argument_name is None:
+                state[state_key] = parsed_value
+            else:
+                state[state_key] = parsed_value.get(argument_name)
+
+        return state
+
+
+
+================================================
+FILE: sdk-python/copilotkit/logging.py
+================================================
+"""
+Logging setup for CopilotKit.
+"""
+
+import logging
+import os
+import sys
+
+def get_logger(name: str):
+    """
+    Get a logger with the given name.
+    """
+    logger = logging.getLogger(name)
+    log_level = os.getenv('LOG_LEVEL')
+    if log_level:
+        logger.setLevel(log_level.upper())
+    return logger
+
+def bold(text: str) -> str:
+    """
+    Bold the given text.
+    """
+    if hasattr(sys.stdout, 'isatty') and sys.stdout.isatty():
+        return f"\033[1m{text}\033[0m"
+    return text
+
+
+
+================================================
+FILE: sdk-python/copilotkit/parameter.py
+================================================
+"""Parameter classes for CopilotKit"""
+
+from typing import TypedDict, Optional, Literal, List, Union, cast, Any
+from typing_extensions import NotRequired
+
+class SimpleParameter(TypedDict):
+    """Simple parameter class"""
+    name: str
+    description: NotRequired[str]
+    required: NotRequired[bool]
+    type: NotRequired[Literal[
+        "number", 
+        "boolean",
+        "number[]", 
+        "boolean[]"
+    ]]
+
+class ObjectParameter(TypedDict):
+    """Object parameter class"""
+    name: str
+    description: NotRequired[str]
+    required: NotRequired[bool]
+    type: Literal["object", "object[]"]
+    attributes: List['Parameter']
+
+class StringParameter(TypedDict):
+    """String parameter class"""
+    name: str
+    description: NotRequired[str]
+    required: NotRequired[bool]
+    type: Literal["string", "string[]"]
+    enum: NotRequired[List[str]]
+
+Parameter = Union[SimpleParameter, ObjectParameter, StringParameter]
+
+def normalize_parameters(parameters: Optional[List[Parameter]]) -> List[Parameter]:
+    """Normalize the parameters to ensure they have the correct type and format."""
+    if parameters is None:
+        return []
+    return [_normalize_parameter(parameter) for parameter in parameters]
+
+def _normalize_parameter(parameter: Parameter) -> Parameter:
+    """Normalize a parameter to ensure it has the correct type and format."""
+    if not "type" in parameter:
+        cast(Any, parameter)['type'] = 'string'
+    if not 'required' in parameter:
+        parameter['required'] = True
+    if not 'description' in parameter:
+        parameter['description'] = ''
+
+    if 'type' in parameter and (parameter['type'] == 'object' or parameter['type'] == 'object[]'):
+        cast(Any, parameter)['attributes'] = normalize_parameters(parameter.get('attributes'))
+    return parameter
+
+
+
+================================================
+FILE: sdk-python/copilotkit/protocol.py
+================================================
+"""
+CopilotKit Protocol
+"""
+
+import json
+from enum import Enum
+from typing import Union, Optional
+from typing_extensions import TypedDict, Literal, Any, Dict
+
+class RuntimeEventTypes(Enum):
+    """CopilotKit Runtime Event Types"""
+    TEXT_MESSAGE_START = "TextMessageStart"
+    TEXT_MESSAGE_CONTENT = "TextMessageContent"
+    TEXT_MESSAGE_END = "TextMessageEnd"
+    ACTION_EXECUTION_START = "ActionExecutionStart"
+    ACTION_EXECUTION_ARGS = "ActionExecutionArgs"
+    ACTION_EXECUTION_END = "ActionExecutionEnd"
+    ACTION_EXECUTION_RESULT = "ActionExecutionResult"
+    AGENT_STATE_MESSAGE = "AgentStateMessage"
+    META_EVENT = "MetaEvent"
+    RUN_STARTED = "RunStarted"
+    RUN_FINISHED = "RunFinished"
+    RUN_ERROR = "RunError"
+    NODE_STARTED = "NodeStarted"
+    NODE_FINISHED = "NodeFinished"
+
+class RuntimeMetaEventName(Enum):
+    """Runtime Meta Event Name"""
+    LANG_GRAPH_INTERRUPT_EVENT = "LangGraphInterruptEvent"
+    PREDICT_STATE = "PredictState"
+    EXIT = "Exit"
+
+
+class TextMessageStart(TypedDict):
+    """Text Message Start Event"""
+    type: Literal[RuntimeEventTypes.TEXT_MESSAGE_START]
+    messageId: str
+    parentMessageId: Optional[str]
+
+class TextMessageContent(TypedDict):
+    """Text Message Content Event"""
+    type: Literal[RuntimeEventTypes.TEXT_MESSAGE_CONTENT]
+    messageId: str
+    content: str
+
+class TextMessageEnd(TypedDict):
+    """Text Message End Event"""
+    type: Literal[RuntimeEventTypes.TEXT_MESSAGE_END]
+    messageId: str
+
+class ActionExecutionStart(TypedDict):
+    """Action Execution Start Event"""
+    type: Literal[RuntimeEventTypes.ACTION_EXECUTION_START]
+    actionExecutionId: str
+    actionName: str
+    parentMessageId: Optional[str]
+
+class ActionExecutionArgs(TypedDict):
+    """Action Execution Args Event"""
+    type: Literal[RuntimeEventTypes.ACTION_EXECUTION_ARGS]
+    actionExecutionId: str
+    args: str
+
+class ActionExecutionEnd(TypedDict):
+    """Action Execution End Event"""
+    type: Literal[RuntimeEventTypes.ACTION_EXECUTION_END]
+    actionExecutionId: str
+
+class ActionExecutionResult(TypedDict):
+    """Action Execution Result Event"""
+    type: Literal[RuntimeEventTypes.ACTION_EXECUTION_RESULT]
+    actionName: str
+    actionExecutionId: str
+    result: str
+
+class AgentStateMessage(TypedDict):
+    """Agent State Message Event"""
+    type: Literal[RuntimeEventTypes.AGENT_STATE_MESSAGE]
+    threadId: str
+    agentName: str
+    nodeName: str
+    runId: str
+    active: bool
+    role: str
+    state: str
+    running: bool
+
+class MetaEvent(TypedDict):
+    """Meta Event"""
+    type: Literal[RuntimeEventTypes.META_EVENT]
+    name: RuntimeMetaEventName
+    value: Any
+
+class RunStarted(TypedDict):
+    """Run Started Event"""
+    type: Literal[RuntimeEventTypes.RUN_STARTED]
+    state: Dict[str, Any]
+
+class RunFinished(TypedDict):
+    """Run Finished Event"""
+    type: Literal[RuntimeEventTypes.RUN_FINISHED]
+    state: Dict[str, Any]
+
+class RunError(TypedDict):
+    """Run Error Event"""
+    type: Literal[RuntimeEventTypes.RUN_ERROR]
+    error: Any
+
+class NodeStarted(TypedDict):
+    """Node Started Event"""
+    type: Literal[RuntimeEventTypes.NODE_STARTED]
+    node_name: str
+    state: Dict[str, Any]
+
+class NodeFinished(TypedDict):
+    """Node Finished Event"""
+    type: Literal[RuntimeEventTypes.NODE_FINISHED]
+    node_name: str
+    state: Dict[str, Any]
+
+RuntimeProtocolEvent = Union[
+    TextMessageStart,
+    TextMessageContent,
+    TextMessageEnd,
+    ActionExecutionStart,
+    ActionExecutionArgs,
+    ActionExecutionEnd,
+    ActionExecutionResult,
+    AgentStateMessage,
+    MetaEvent
+]
+
+RuntimeLifecycleEvent = Union[
+    RunStarted,
+    RunFinished,
+    RunError,
+    NodeStarted,
+    NodeFinished,
+]
+
+RuntimeEvent = Union[
+    RuntimeProtocolEvent,
+    RuntimeLifecycleEvent,
+]
+
+
+class PredictStateConfig(TypedDict):
+    """
+    Predict State Config
+    """
+    tool_name: str
+    tool_argument: Optional[str]
+
+def text_message_start(
+        *,
+        message_id: str,
+        parent_message_id: Optional[str] = None
+  ) -> TextMessageStart:
+    """Utility function to create a text message start event"""
+    return {
+        "type": RuntimeEventTypes.TEXT_MESSAGE_START,
+        "messageId": message_id,
+        "parentMessageId": parent_message_id
+    }
+
+def text_message_content(*, message_id: str, content: str) -> TextMessageContent:
+    """Utility function to create a text message content event"""
+    return {
+        "type": RuntimeEventTypes.TEXT_MESSAGE_CONTENT,
+        "messageId": message_id,
+        "content": content
+    }
+
+def text_message_end(*, message_id: str) -> TextMessageEnd:
+    """Utility function to create a text message end event"""
+    return {
+        "type": RuntimeEventTypes.TEXT_MESSAGE_END,
+        "messageId": message_id
+    }
+
+def action_execution_start(
+        *,
+        action_execution_id: str,
+        action_name: str,
+        parent_message_id: Optional[str] = None
+    ) -> ActionExecutionStart:
+    """Utility function to create an action execution start event"""
+    return {
+        "type": RuntimeEventTypes.ACTION_EXECUTION_START,
+        "actionExecutionId": action_execution_id,
+        "actionName": action_name,
+        "parentMessageId": parent_message_id
+    }
+
+def action_execution_args(*, action_execution_id: str, args: str) -> ActionExecutionArgs:
+    """Utility function to create an action execution args event"""
+    return {
+        "type": RuntimeEventTypes.ACTION_EXECUTION_ARGS,
+        "actionExecutionId": action_execution_id,
+        "args": args
+    }
+
+def action_execution_end(*, action_execution_id: str) -> ActionExecutionEnd:
+    """Utility function to create an action execution end event"""
+    return {
+        "type": RuntimeEventTypes.ACTION_EXECUTION_END,
+        "actionExecutionId": action_execution_id
+    }
+
+def action_execution_result(
+        *,
+        action_name: str,
+        action_execution_id: str,
+        result: str
+    ) -> ActionExecutionResult:
+    """Utility function to create an action execution result event"""
+    return {
+        "type": RuntimeEventTypes.ACTION_EXECUTION_RESULT,
+        "actionName": action_name,
+        "actionExecutionId": action_execution_id,
+        "result": result
+    }
+
+def agent_state_message( # pylint: disable=too-many-arguments
+        *,
+        thread_id: str,
+        agent_name: str,
+        node_name: str,
+        run_id: str,
+        active: bool,
+        role: str,
+        state: str,
+        running: bool
+  ) -> AgentStateMessage:
+    """Utility function to create an agent state message event"""
+    return {
+        "type": RuntimeEventTypes.AGENT_STATE_MESSAGE,
+        "threadId": thread_id,
+        "agentName": agent_name,
+        "nodeName": node_name,
+        "runId": run_id,
+        "active": active,
+        "role": role,
+        "state": state,
+        "running": running
+    }
+
+def meta_event(*, name: RuntimeMetaEventName, value: Any) -> MetaEvent:
+    """Utility function to create a meta event"""
+    return {
+        "type": RuntimeEventTypes.META_EVENT,
+        "name": name,
+        "value": value
+    }
+
+def emit_runtime_events(*events: RuntimeProtocolEvent) -> str:
+    """Emit a list of runtime events"""
+    def serialize_event(event):
+        # Convert enum values to their string representation
+        if isinstance(event, dict):
+            return {k: (v.value if isinstance(v, Enum) else v) for k, v in event.items()}
+        return event
+
+    return "\n".join(json.dumps(serialize_event(event)) for event in events) + "\n"
+
+def emit_runtime_event(event: RuntimeProtocolEvent) -> str:
+    """Emit a single runtime event"""
+    return emit_runtime_events(event)
+
+
+
+================================================
+FILE: sdk-python/copilotkit/runloop.py
+================================================
+"""
+CopilotKit Run Loop
+"""
+
+import asyncio
+import contextvars
+import json
+import traceback
+from typing import Callable
+from pydantic import BaseModel
+from typing_extensions import Any, Dict, Optional, List, TypedDict, cast
+from partialjson.json_parser import JSONParser as PartialJSONParser
+
+from .protocol import (
+    RuntimeEvent,
+    RuntimeEventTypes,
+    RuntimeMetaEventName,
+    emit_runtime_event,
+    emit_runtime_events,
+    agent_state_message,
+    AgentStateMessage,
+    PredictStateConfig,
+    RuntimeProtocolEvent
+)
+
+async def yield_control():
+    """
+    Yield control to the event loop.
+    """
+    loop = asyncio.get_running_loop()
+    future = loop.create_future()
+    loop.call_soon(future.set_result, None)
+    await future
+
+
+class CopilotKitRunExecution(TypedDict):
+    """
+    CopilotKit Run Execution
+    """
+    thread_id: str
+    agent_name: str
+    run_id: str
+    should_exit: bool
+    node_name: str
+    is_finished: bool
+    predict_state_configuration: Dict[str, PredictStateConfig]
+    predicted_state: Dict[str, Any]
+    argument_buffer: str
+    current_tool_call: Optional[str]
+    state: Dict[str, Any]
+
+_CONTEXT_QUEUE = contextvars.ContextVar('queue', default=None)
+_CONTEXT_EXECUTION = contextvars.ContextVar('execution', default=None)
+
+def get_context_queue() -> asyncio.Queue:
+    """
+    Retrieve the queue from this task's context.
+    """
+    q = _CONTEXT_QUEUE.get()
+    if q is None:
+        raise RuntimeError("No context queue is set!")
+    return q
+
+def set_context_queue(q: asyncio.Queue) -> contextvars.Token:
+    """
+    Set the queue in this task's context.
+    """
+    token = _CONTEXT_QUEUE.set(cast(Any, q))
+    return token
+
+def reset_context_queue(token: contextvars.Token):
+    """
+    Reset the queue in this task's context.
+    """
+    _CONTEXT_QUEUE.reset(token)
+
+def get_context_execution() -> CopilotKitRunExecution:
+    """
+    Get the execution from this task's context.
+    """
+    return cast(CopilotKitRunExecution, _CONTEXT_EXECUTION.get())
+
+def set_context_execution(execution: CopilotKitRunExecution) -> contextvars.Token:
+    """
+    Set the execution in this task's context.
+    """
+    token = _CONTEXT_EXECUTION.set(cast(Any, execution))
+    return token
+
+def reset_context_execution(token: contextvars.Token):
+    """
+    Reset the execution in this task's context.
+    """
+    _CONTEXT_EXECUTION.reset(token)
+
+
+async def queue_put(*events: RuntimeEvent, priority: bool = False):
+    """
+    Put an event in the queue.
+    """
+    if not priority:
+        # yield control so that priority events can be processed first
+        await yield_control()
+
+    q = get_context_queue()
+    for event in events:
+        await q.put(event)
+
+    # yield control so that the reader can process the event
+    await yield_control()
+
+
+def _to_dict_if_pydantic(obj):
+    if isinstance(obj, BaseModel):
+        return obj.model_dump()
+    return obj
+
+def _filter_state(
+        *,
+        state: Dict[str, Any],
+        exclude_keys: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+    """Filter out messages and id from the state"""
+    state = _to_dict_if_pydantic(state)
+    exclude_keys = exclude_keys or ["messages", "id"]
+    return {k: v for k, v in state.items() if k not in exclude_keys}
+
+
+async def copilotkit_run(
+        fn: Callable,
+        *,
+        execution: CopilotKitRunExecution
+):
+    """
+    Run a task with a local queue.
+    """
+    local_queue = asyncio.Queue()
+    token_queue = set_context_queue(local_queue)
+    token_execution = set_context_execution(execution)
+
+    task = asyncio.create_task(
+        fn()
+    )
+    try:
+        while True:
+            event = await local_queue.get()
+            local_queue.task_done()
+
+            json_lines = handle_runtime_event(
+                event=event,
+                execution=execution
+            )
+
+            if json_lines is not None:
+                yield json_lines
+
+            if execution["is_finished"]:
+                break
+
+            # return control to the containing run loop to send events
+            await yield_control()
+
+        await task
+
+    finally:
+        reset_context_queue(token_queue)
+        reset_context_execution(token_execution)
+
+def handle_runtime_event(
+        *,
+        event: RuntimeEvent,
+        execution: CopilotKitRunExecution
+) -> Optional[str]:
+    """
+    Handle a runtime event.
+    """
+
+    if event["type"] in [
+        RuntimeEventTypes.TEXT_MESSAGE_START,
+        RuntimeEventTypes.TEXT_MESSAGE_CONTENT,
+        RuntimeEventTypes.TEXT_MESSAGE_END,
+        RuntimeEventTypes.ACTION_EXECUTION_START,
+        RuntimeEventTypes.ACTION_EXECUTION_ARGS,
+        RuntimeEventTypes.ACTION_EXECUTION_END,
+        RuntimeEventTypes.ACTION_EXECUTION_RESULT,
+        RuntimeEventTypes.AGENT_STATE_MESSAGE
+    ]:
+        events: List[RuntimeProtocolEvent] = [cast(RuntimeProtocolEvent, event)]
+        if event["type"] in [
+            RuntimeEventTypes.ACTION_EXECUTION_START,
+            RuntimeEventTypes.ACTION_EXECUTION_ARGS
+        ]:
+            message = predict_state(
+                thread_id=execution["thread_id"],
+                agent_name=execution["agent_name"],
+                run_id=execution["run_id"],
+                event=event,
+                execution=execution,
+            )
+            if message is not None:
+                events.append(message)
+        return emit_runtime_events(*events)
+
+    if event["type"] == RuntimeEventTypes.META_EVENT:
+        if event["name"] == RuntimeMetaEventName.PREDICT_STATE:
+            execution["predict_state_configuration"] = event["value"]
+            return None
+        if event["name"] == RuntimeMetaEventName.EXIT:
+            execution["should_exit"] = event["value"]
+            return None
+        return None
+
+    if event["type"] == RuntimeEventTypes.RUN_STARTED:
+        execution["state"] = event["state"]
+        return None
+
+    if event["type"] == RuntimeEventTypes.NODE_STARTED:
+        execution["node_name"] = event["node_name"]
+        execution["state"] = event["state"]
+
+        return emit_runtime_event(
+            agent_state_message(
+                thread_id=execution["thread_id"],
+                agent_name=execution["agent_name"],
+                node_name=execution["node_name"],
+                run_id=execution["run_id"],
+                active=True,
+                role="assistant",
+                state=json.dumps(_filter_state(state=execution["state"])),
+                running=True
+            )
+        )
+
+    if event["type"] == RuntimeEventTypes.NODE_FINISHED:
+
+        # reset the predict state configuration at the end of the method execution
+        execution["predict_state_configuration"] = {}
+        execution["current_tool_call"] = None
+        execution["argument_buffer"] = ""
+        execution["predicted_state"] = {}
+        execution["state"] = event["state"]
+
+        return emit_runtime_event(
+            agent_state_message(
+                thread_id=execution["thread_id"],
+                agent_name=execution["agent_name"],
+                node_name=execution["node_name"],
+                run_id=execution["run_id"],
+                active=False,
+                role="assistant",
+                state=json.dumps(_filter_state(state=execution["state"])),
+                running=True
+            )
+        )
+
+    if event["type"] == RuntimeEventTypes.RUN_FINISHED:
+        execution["is_finished"] = True
+        return None
+
+    if event["type"] == RuntimeEventTypes.RUN_ERROR:
+        print("Flow execution error", flush=True)
+        error_info = event["error"]
+
+        if isinstance(error_info, Exception):
+            # If it's an exception, print the traceback
+            print("Exception occurred:", flush=True)
+            print(
+                ''.join(
+                    traceback.format_exception(
+                        None,
+                        error_info,
+                        error_info.__traceback__
+                    )
+                ),
+                flush=True
+            )
+        else:
+            # Otherwise, assume it's a string and print it
+            print(error_info, flush=True)
+
+        execution["is_finished"] = True
+        return None
+
+def predict_state(
+        *,
+        thread_id: str,
+        agent_name: str,
+        run_id: str,
+        event: Any,
+        execution: CopilotKitRunExecution,
+) -> Optional[AgentStateMessage]:
+    """Predict the state"""
+    
+    if event["type"] == RuntimeEventTypes.ACTION_EXECUTION_START:
+        execution["current_tool_call"] = event["actionName"]
+        execution["argument_buffer"] = ""
+    elif event["type"] == RuntimeEventTypes.ACTION_EXECUTION_ARGS:
+        execution["argument_buffer"] += event["args"]
+
+        tool_names = [
+            config.get("tool_name")
+            for config in execution["predict_state_configuration"].values()
+        ]
+
+        if execution["current_tool_call"] not in tool_names:
+            return None
+
+        current_arguments = {}
+        try:
+            current_arguments = PartialJSONParser().parse(execution["argument_buffer"])
+        except:  # pylint: disable=bare-except
+            return None
+
+        emit_update = False
+        for k, v in execution["predict_state_configuration"].items():
+            if v["tool_name"] == execution["current_tool_call"]:
+                tool_argument = v.get("tool_argument")
+                if tool_argument is not None:
+                    argument_value = current_arguments.get(tool_argument)
+                    if argument_value is not None:
+                        execution["predicted_state"][k] = argument_value
+                        emit_update = True
+                else:
+                    execution["predicted_state"][k] = current_arguments
+                    emit_update = True
+
+        if emit_update:
+            return agent_state_message(
+                thread_id=thread_id,
+                agent_name=agent_name,
+                node_name=execution["node_name"],
+                run_id=run_id,
+                active=True,
+                role="assistant",
+                state=json.dumps(
+                    _filter_state(
+                        state={
+                            **(
+                                execution["state"].model_dump()
+                                if isinstance(execution["state"], BaseModel)
+                                else execution["state"]
+                            ),
+                            **execution["predicted_state"]
+                        }
+                    )
+                ),
+                running=True
+            )
+
+        return None
+
+
+
+================================================
+FILE: sdk-python/copilotkit/sdk.py
+================================================
+"""CopilotKit SDK"""
+
+import warnings
+from importlib import metadata
+
+from pprint import pformat
+from typing import List, Callable, Union, Optional, Any, Coroutine
+from typing_extensions import TypedDict, Tuple, cast, Mapping
+from .agent import Agent, AgentDict
+from .action import Action, ActionDict, ActionResultDict
+from .types import Message, MetaEvent
+from .exc import (
+    ActionNotFoundException,
+    AgentNotFoundException,
+    ActionExecutionException,
+    AgentExecutionException
+)
+from .logging import get_logger, bold
+
+
+try:
+    __version__ = metadata.version(cast(str, __package__))
+except metadata.PackageNotFoundError:
+    # Case where package metadata is not available.
+    __version__ = ""
+del metadata  # optional, avoids polluting the results of dir(__package__)
+
+COPILOTKIT_SDK_VERSION = __version__
+
+logger = get_logger(__name__)
+
+class InfoDict(TypedDict):
+    """
+    Info dictionary
+    """
+    sdkVersion: str
+    actions: List[ActionDict]
+    agents: List[AgentDict]
+
+class CopilotKitContext(TypedDict):
+    """
+    CopilotKit Context
+    
+    Parameters
+    ----------
+    properties : Any
+        The properties provided to the frontend via `<CopilotKit properties={...} />`
+    frontend_url : Optional[str]
+        The current URL of the frontend
+    headers : Mapping[str, str]
+        The headers of the request
+    """
+    properties: Any
+    frontend_url: Optional[str]
+    headers: Mapping[str, str]
+
+# Alias for backwards compatibility
+CopilotKitSDKContext = CopilotKitContext
+
+
+class CopilotKitRemoteEndpoint:
+    """
+    CopilotKitRemoteEndpoint lets you connect actions and agents written in Python to your 
+    CopilotKit application.
+
+    To install CopilotKit for Python, run:
+
+    ```bash
+    pip install copilotkit
+    # or to include crewai
+    pip install copilotkit[crewai]
+    ```
+
+    ## Adding actions
+
+    In this example, we provide a simple action to the Copilot:
+
+    ```python
+    from copilotkit import CopilotKitRemoteEndpoint, Action
+
+    sdk = CopilotKitRemoteEndpoint(
+        actions=[
+            Action(
+                name="greet_user",
+                handler=greet_user_handler,
+                description="Greet the user",
+                parameters=[
+                    {
+                        "name": "name",
+                        "type": "string",
+                        "description": "The name of the user"
+                    }
+                ]
+            )
+        ]
+    )
+    ```
+
+    You can also dynamically build actions by providing a callable that returns a list of actions.
+    In this example, we use "name" from the `properties` object to parameterize the action handler.
+
+    ```python
+    from copilotkit import CopilotKitRemoteEndpoint, Action
+
+    sdk = CopilotKitRemoteEndpoint(
+        actions=lambda context: [
+            Action(
+                name="greet_user",
+                handler=make_greet_user_handler(context["properties"]["name"]), 
+                description="Greet the user"
+            )
+        ]
+    )
+    ```
+
+    Using the same approach, you can restrict the actions available to the Copilot:
+
+    ```python
+    from copilotkit import CopilotKitRemoteEndpoint, Action
+
+    sdk = CopilotKitRemoteEndpoint(
+        actions=lambda context: (
+            [action_a, action_b] if is_admin(context["properties"]["token"]) else [action_a]
+        )
+    )
+    ```
+
+    ## Adding agents
+
+    Serving agents works in a similar way to serving actions:
+
+    ```python
+    from copilotkit import CopilotKitRemoteEndpoint, LangGraphAgent
+    from my_agent.agent import graph
+
+    sdk = CopilotKitRemoteEndpoint(
+        agents=[
+            LangGraphAgent(
+                name="email_agent",
+                description="This agent sends emails",
+                graph=graph,
+            )
+        ]
+    )
+    ```
+
+    To dynamically build agents, provide a callable that returns a list of agents:
+
+    ```python
+    from copilotkit import CopilotKitRemoteEndpoint, LangGraphAgent
+    from my_agent.agent import graph
+
+    sdk = CopilotKitRemoteEndpoint(
+        agents=lambda context: [
+            LangGraphAgent(
+                name="email_agent",
+                description="This agent sends emails",
+                graph=graph,
+                langgraph_config={
+                    "token": context["properties"]["token"]
+                }
+            )
+        ]
+    )
+    ```
+
+    To restrict the agents available to the Copilot, simply return a different list of agents based on the `context`:
+
+    ```python
+    from copilotkit import CopilotKitRemoteEndpoint
+    from my_agents import agent_a, agent_b, is_admin
+
+    sdk = CopilotKitRemoteEndpoint(
+        agents=lambda context: (
+            [agent_a, agent_b] if is_admin(context["properties"]["token"]) else [agent_a]
+        )
+    )
+    ```
+
+    ## Serving the CopilotKit SDK
+
+    To serve the CopilotKit SDK, you can use the `add_fastapi_endpoint` function from the `copilotkit.integrations.fastapi` module:
+
+    ```python
+    from copilotkit.integrations.fastapi import add_fastapi_endpoint
+    from fastapi import FastAPI
+
+    app = FastAPI()
+    sdk = CopilotKitRemoteEndpoint(...)
+    add_fastapi_endpoint(app, sdk, "/copilotkit")
+
+    def main():
+        uvicorn.run(
+            "your_package:app",
+            host="0.0.0.0",
+            port=8000,
+            reload=True,
+        )
+
+    ```
+
+    Parameters
+    ----------
+    actions : Optional[Union[List[Action], Callable[[CopilotKitContext], List[Action]]]]
+        The actions to make available to the Copilot.
+    agents : Optional[Union[List[Agent], Callable[[CopilotKitContext], List[Agent]]]]
+        The agents to make available to the Copilot.
+    """
+
+    def __init__(
+        self,
+        *,
+        actions: Optional[
+            Union[
+                List[Action],
+                Callable[[CopilotKitContext], List[Action]]
+            ]
+        ] = None,
+        agents: Optional[
+            Union[
+                List[Agent],
+                Callable[[CopilotKitContext], List[Agent]]
+            ]
+        ] = None,
+    ):
+        self.agents = agents or []
+        self.actions = actions or []
+
+    def info(
+        self,
+        *,
+        context: CopilotKitContext
+    ) -> InfoDict:
+        """
+        Returns information about available actions and agents
+        """
+
+        actions = self.actions(context) if callable(self.actions) else self.actions
+        agents = self.agents(context) if callable(self.agents) else self.agents
+
+        actions_list = [action.dict_repr() for action in actions]
+        agents_list = [agent.dict_repr() for agent in agents]
+
+        self._log_request_info(
+            title="Handling info request:",
+            data=[
+                ("Context", context),
+                ("Actions", actions_list),
+                ("Agents", agents_list),
+            ]
+        )
+
+        return {
+            "actions": actions_list,
+            "agents": agents_list,
+            "sdkVersion": COPILOTKIT_SDK_VERSION
+        }
+
+    def _get_action(
+        self,
+        *,
+        context: CopilotKitContext,
+        name: str,
+    ) -> Action:
+        """
+        Get an action by name
+        """
+        actions = self.actions(context) if callable(self.actions) else self.actions
+        action = next((action for action in actions if action.name == name), None)
+        if action is None:
+            raise ActionNotFoundException(name)
+        return action
+
+    def execute_action(
+            self,
+            *,
+            context: CopilotKitContext,
+            name: str,
+            arguments: dict,
+    ) -> Coroutine[Any, Any, ActionResultDict]:
+        """
+        Execute an action
+        """
+
+        action = self._get_action(context=context, name=name)
+
+        self._log_request_info(
+            title="Handling execute action request:",
+            data=[
+                ("Context", context),
+                ("Action", action.dict_repr()),
+                ("Arguments", arguments),
+            ]
+        )
+
+        try:
+            result = action.execute(arguments=arguments)
+            return result
+        except Exception as error:
+            raise ActionExecutionException(name, error) from error
+
+    def execute_agent( # pylint: disable=too-many-arguments
+        self,
+        *,
+        context: CopilotKitContext,
+        name: str,
+        thread_id: str,
+        state: dict,
+        configurable: Optional[dict] = None,
+        messages: List[Message],
+        actions: List[ActionDict],
+        node_name: str,
+        meta_events: Optional[List[MetaEvent]] = None,
+    ) -> Any:
+        """
+        Execute an agent
+        """
+        agents = self.agents(context) if callable(self.agents) else self.agents
+        agent = next((agent for agent in agents if agent.name == name), None)
+        if agent is None:
+            raise AgentNotFoundException(name)
+
+        self._log_request_info(
+            title="Handling execute agent request:",
+            data=[
+                ("Context", context),
+                ("Agent", agent.dict_repr()),
+                ("Thread ID", thread_id),
+                ("Node Name", node_name),
+                ("State", state),
+                ("Configurable", configurable),
+                ("Messages", messages),
+                ("Actions", actions),
+                ("MetaEvents", meta_events),
+            ]
+        )
+
+        try:
+            return agent.execute(
+                thread_id=thread_id,
+                node_name=node_name,
+                state=state,
+                configurable=configurable,
+                messages=messages,
+                actions=actions,
+                meta_events=meta_events
+            )
+        except Exception as error:
+            raise AgentExecutionException(name, error) from error
+
+    async def get_agent_state(
+        self,
+        *,
+        context: CopilotKitContext,
+        thread_id: str,
+        name: str,
+    ):
+        """
+        Get agent state
+        """
+        agents = self.agents(context) if callable(self.agents) else self.agents
+        agent = next((agent for agent in agents if agent.name == name), None)
+        if agent is None:
+            raise AgentNotFoundException(name)
+
+        self._log_request_info(
+            title="Handling get agent state request:",
+            data=[
+                ("Context", context),
+                ("Agent", agent.dict_repr()),
+                ("Thread ID", thread_id),
+            ]
+        )
+        try:
+            return await agent.get_state(thread_id=thread_id)
+        except Exception as error:
+            raise AgentExecutionException(name, error) from error
+
+    def _log_request_info(self, title: str, data: List[Tuple[str, Any]]):
+        """
+        Log request info
+        """
+        logger.info(bold(title))
+        logger.info("--------------------------")
+        for key, value in data:
+            logger.info(bold(key+":"))
+            logger.info(pformat(value))
+        logger.info("--------------------------")
+
+# Alias for backwards compatibility
+class CopilotKitSDK(CopilotKitRemoteEndpoint):
+    """Deprecated: Use CopilotKitRemoteEndpoint instead. This class will be removed in a future version."""
+
+    def __init__(self, *args, **kwargs):
+        warnings.warn(
+            "CopilotKitSDK is deprecated since version 0.1.31. "
+            "Use CopilotKitRemoteEndpoint instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        super().__init__(*args, **kwargs)
+
+
+
+================================================
+FILE: sdk-python/copilotkit/types.py
+================================================
+"""State for CopilotKit"""
+
+from typing import TypedDict
+from enum import Enum
+from typing_extensions import NotRequired
+
+class MessageRole(Enum):
+    """Message role"""
+    ASSISTANT = "assistant"
+    SYSTEM = "system"
+    USER = "user"
+
+class Message(TypedDict):
+    """Message"""
+    id: str
+    createdAt: str
+
+class TextMessage(Message):
+    """Text message"""
+    parentMessageId: NotRequired[str]
+    role: MessageRole
+    content: str
+
+class ActionExecutionMessage(Message):
+    """Action execution message"""
+    parentMessageId: NotRequired[str]
+    name: str
+    arguments: dict
+
+class ResultMessage(Message):
+    """Result message"""
+    actionExecutionId: str
+    actionName: str
+    result: str
+
+class IntermediateStateConfig(TypedDict):
+    """Intermediate state config"""
+    state_key: str
+    tool: str
+    tool_argument: NotRequired[str]
+
+class MetaEvent(TypedDict):
+    """Type definition for meta events"""
+    name: str
+    response: NotRequired[str]
+
+
+================================================
+FILE: sdk-python/copilotkit/utils.py
+================================================
+def filter_by_schema_keys(obj, schema):
+    try:
+        return {
+            k: v for k, v in obj.items()
+            if k in schema or k == "messages"
+        }
+    except Exception:
+        return obj
+
+
+================================================
+FILE: sdk-python/copilotkit/crewai/__init__.py
+================================================
+"""
+CrewAI
+"""
+from .crewai_agent import CrewAIAgent
+from .crewai_sdk import (
+    CopilotKitProperties,
+    CopilotKitState,
+    copilotkit_emit_state,
+    copilotkit_emit_message,
+    copilotkit_emit_tool_call,
+    copilotkit_stream,
+    copilotkit_exit,
+    copilotkit_predict_state,
+)
+__all__ = [
+    "CrewAIAgent",
+    "CopilotKitProperties",
+    "CopilotKitState",
+    "copilotkit_emit_state",
+    "copilotkit_emit_message",
+    "copilotkit_emit_tool_call",
+    "copilotkit_stream",
+    "copilotkit_exit",
+    "copilotkit_predict_state",
+]
+
+
+
+================================================
+FILE: sdk-python/copilotkit/crewai/crewai_agent.py
+================================================
+"""
+CrewAI Agent
+"""
+
+import uuid
+import json
+from copy import deepcopy
+from pydantic import BaseModel
+from typing import Optional, List, Callable
+from typing_extensions import TypedDict, NotRequired, Any, Dict, cast
+from crewai import Crew, Flow
+from crewai.flow import start
+from crewai.cli.crew_chat import (
+  initialize_chat_llm as crew_chat_initialize_chat_llm,
+  generate_crew_chat_inputs as crew_chat_generate_crew_chat_inputs,
+  generate_crew_tool_schema as crew_chat_generate_crew_tool_schema,
+  build_system_message as crew_chat_build_system_message,
+  create_tool_function as crew_chat_create_tool_function
+)
+from litellm import completion
+from copilotkit.agent import Agent
+from copilotkit.types import Message
+from copilotkit.action import ActionDict
+from copilotkit.protocol import (
+  emit_runtime_events,
+  agent_state_message,
+)
+from .crewai_sdk import (
+  copilotkit_messages_to_crewai_flow,
+  crewai_flow_messages_to_copilotkit,
+  crewai_flow_async_runner,
+  copilotkit_stream,
+  copilotkit_exit,
+  logger
+)
+
+from copilotkit.runloop import copilotkit_run, CopilotKitRunExecution
+
+class CopilotKitConfig(TypedDict):
+    """
+    CopilotKit config for CrewAIAgent
+
+    This is used for advanced cases where you want to customize how CopilotKit interacts with
+    CrewAI.
+
+    ```python
+    # Function signatures:
+    def merge_state(
+        *,
+        state: dict,
+        messages: List[BaseMessage],
+        actions: List[Any],
+        agent_name: str
+    ):
+        # ...implementation...
+
+    ```
+
+    Parameters
+    ----------
+    merge_state : Callable
+        This function lets you customize how CopilotKit merges the agent state.
+    """
+    merge_state: NotRequired[Callable]
+
+class CrewAIFlowExecutionState(TypedDict):
+    """
+    State for an execution of a CrewAI Flow agent
+    """
+    should_exit: bool
+    node_name: str
+    is_finished: bool
+    predict_state_configuration: Dict[str, Any]
+    predicted_state: Dict[str, Any]
+    argument_buffer: str
+    current_tool_call: Optional[str]
+
+class CrewAIAgent(Agent):
+    """
+    CrewAIAgent lets you define your agent for use with CopilotKit.
+
+    To install, run:
+
+    ```bash
+    pip install copilotkit[crewai]
+    ```
+
+    Every agent must have the `name` and either `crew` or `flow` properties defined. An optional 
+    `description` can also be provided. This is used when CopilotKit is dynamically routing requests 
+    to the agent.
+
+    ## Serving a Crew based agent
+
+    To serve a Crew based agent, pass in a `Crew` object to the `crew` parameter.
+
+    Note:
+    You need to make sure to have a `chat_llm` set on the `Crew` object.
+    See [the CrewAI docs](https://docs.crewai.com/concepts/cli#9-chat) for more information.
+
+    ```python
+    from copilotkit import CrewAIAgent
+
+
+    CrewAIAgent(
+        name="email_agent_crew",
+        description="This crew based agent sends emails",
+        crew=SendEmailCrew(),
+    )
+    ```
+
+    ## Serving a Flow based agent
+
+    To serve a Flow based agent, pass in a `Flow` object to the `flow` parameter.
+
+    ```python
+    CrewAIAgent(
+        name="email_agent_flow",
+        description="This flow based agent sends emails",
+        flow=SendEmailFlow(),
+    )
+    ```
+
+    Note:
+    Either a `crew` or `flow` must be provided to CrewAIAgent.
+
+    Parameters
+    ----------
+    name : str
+        The name of the agent.
+    crew : Crew
+        When using a Crew based agent, pass in a `Crew` object to the `crew` parameter.
+    flow : Flow
+        When using a Flow based agent, pass in a `Flow` object to the `flow` parameter.
+    description : Optional[str]
+        The description of the agent.
+    copilotkit_config : Optional[CopilotKitConfig]
+        The CopilotKit config to use with the agent.
+
+    """
+    def __init__(
+            self,
+            *,
+            name: str,
+            description: Optional[str] = None,
+            crew: Optional[Crew] = None,
+            flow: Optional[Flow] = None,
+            copilotkit_config: Optional[CopilotKitConfig] = None,
+        ):
+        super().__init__(
+            name=name,
+            description=description,
+        )
+        if (crew is None) == (flow is None):
+            raise ValueError("Either crew or flow must be provided to CrewAIAgent")
+
+
+        self.crew = crew
+        self.flow = flow
+        self.copilotkit_config = copilotkit_config or {}
+
+    def execute( # pylint: disable=too-many-arguments
+        self,
+        *,
+        state: dict,
+        thread_id: str,
+        messages: List[Message],
+        actions: Optional[List[ActionDict]] = None,
+        **kwargs,
+    ):
+        """Execute the agent"""
+        if self.crew:
+            crew = deepcopy(self.crew)
+            return self.execute_crew(
+                state=state,
+                messages=messages,
+                thread_id=thread_id,
+                actions=actions,
+                crew=crew,
+                **kwargs
+            )
+
+        if self.flow:
+            flow = deepcopy(self.flow)
+            return self.execute_flow(
+                state=state,
+                messages=messages,
+                thread_id=thread_id,
+                actions=actions,
+                flow=flow,
+                **kwargs
+            )
+
+        raise ValueError("Either crew or flow must be provided to CrewAIAgent")
+
+    def execute_crew( # pylint: disable=too-many-arguments,unused-argument
+        self,
+        *,
+        state: dict,
+        crew: Crew,
+        thread_id: str,
+        messages: List[Message],
+        actions: Optional[List[ActionDict]] = None,
+        **kwargs,
+    ):
+        """Execute a `Crew` based agent"""    
+
+        flow = ChatWithCrewFlow(
+            crew=crew,
+            crew_name=self.name,
+            thread_id=thread_id,
+            cache_key=f"crew_{id(self.crew)}"
+        )
+
+        return self.execute_flow(
+            state=state,
+            messages=messages,
+            thread_id=thread_id,
+            actions=actions,
+            flow=flow,
+            **kwargs
+        )
+
+
+    async def execute_flow( # pylint: disable=too-many-arguments,unused-argument,too-many-locals
+        self,
+        *,
+        state: dict,
+        messages: List[Message],
+        thread_id: Optional[str] = None,
+        actions: Optional[List[ActionDict]] = None,
+        flow: Flow,
+        **kwargs,
+    ):
+        """Execute a `Flow` based agent"""
+
+        if thread_id is None:
+            raise ValueError("Thread ID is required")
+
+        run_id = str(uuid.uuid4())
+
+
+        merge_state = self.copilotkit_config.get("merge_state", crewai_flow_default_merge_state)
+
+        crewai_flow_messages = copilotkit_messages_to_crewai_flow(messages)
+
+        state = merge_state(
+            state=state,
+            messages=crewai_flow_messages,
+            actions=actions or [],
+            agent_name=self.name,
+            flow=flow
+        )
+
+        execution: CopilotKitRunExecution = CopilotKitRunExecution(
+            thread_id=thread_id,
+            agent_name=self.name,
+            run_id=run_id,
+            should_exit=False,
+            node_name="start",
+            is_finished=False,
+            predict_state_configuration={},
+            predicted_state={},
+            argument_buffer="",
+            current_tool_call=None,
+            state=state
+        )
+
+        async for event in copilotkit_run(
+            fn=lambda: crewai_flow_async_runner(flow, deepcopy(state)),
+            execution=execution
+        ):
+            yield event
+
+        state = {**(flow.state.model_dump() if isinstance(flow.state, BaseModel) else flow.state)}
+        if "messages" in state:
+            state["messages"] = crewai_flow_messages_to_copilotkit(state["messages"])
+
+        # emit the final state
+        yield emit_runtime_events(
+            agent_state_message(
+                thread_id=thread_id,
+                agent_name=self.name,
+                node_name=execution["node_name"],
+                run_id=run_id,
+                active=False,
+                role="assistant",
+                state=json.dumps(filter_state(state, exclude_keys=["id"])),
+                running=not execution["should_exit"]
+            )
+        )
+    
+    async def get_state(
+        self,
+        *,
+        thread_id: str,
+    ):
+        if self.flow and self.flow._persistence: # pylint: disable=protected-access
+            try:
+                stored_state = self.flow._persistence.load_state(thread_id) # pylint: disable=protected-access
+                messages = []
+                if "messages" in stored_state and stored_state["messages"]:
+                    try:
+                        messages = crewai_flow_messages_to_copilotkit(stored_state["messages"])
+                    except Exception as e: # pylint: disable=broad-except
+                        # If conversion fails, we'll return empty messages
+                        logger.warning(f"Failed to convert messages from stored state: {str(e)}")
+                return {
+                    "threadId": thread_id,
+                    "threadExists": True,
+                    "state": stored_state,
+                    "messages": messages
+                }
+            except Exception as e: # pylint: disable=broad-except
+                logger.warning(f"Failed to load state for thread {thread_id}: {str(e)}")
+
+        return {
+            "threadId": thread_id,
+            "threadExists": False,
+            "state": {},
+            "messages": []
+        }
+
+
+    def dict_repr(self):
+        super_repr = super().dict_repr()
+        return {
+            **super_repr,
+            'type': 'crewai'
+        }
+
+def crewai_flow_default_merge_state( # pylint: disable=unused-argument, too-many-arguments
+        *,
+        state: dict,
+        flow: Flow,
+        messages: List[Any],
+        actions: List[Any],
+        agent_name: str,
+    ):
+    """Default merge state for CrewAI"""
+    if len(messages) > 0:
+        if "role" in messages[0] and messages[0]["role"] == "system":
+            messages = messages[1:]
+
+
+    actions = [{
+        "type": "function",
+        "function": {
+            **action,
+        }
+    } for action in actions]
+
+    new_state = {
+        **state,
+        "messages": messages,
+        "copilotkit": {
+            "actions": actions
+        }
+    }
+
+    return new_state
+
+
+def filter_state(state: Dict[str, Any], exclude_keys: Optional[List[str]] = None) -> Dict[str, Any]:
+    """Filter out messages and id from the state"""
+    exclude_keys = exclude_keys or ["messages", "id"]
+    return {k: v for k, v in state.items() if k not in exclude_keys}
+
+CREW_EXIT_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "crew_exit",
+        "description": "Call this when the user has indicated that they are done with the crew",
+        "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+}
+
+_CREW_INPUTS_CACHE = {}
+
+class ChatWithCrewFlow(Flow):
+    """Chat with crew"""
+
+    def __init__(
+            self, *,
+            crew: Crew,
+            crew_name: str,
+            thread_id: str,
+            cache_key: str
+        ):
+        super().__init__()
+
+        self.crew = cast(Any, crew).crew()
+
+        if self.crew.chat_llm is None:
+            raise ValueError("Crew chat LLM is not set")
+
+        self.crew_name = crew_name
+        self.thread_id = thread_id
+        self.chat_llm = crew_chat_initialize_chat_llm(self.crew)
+
+        if cache_key not in _CREW_INPUTS_CACHE:
+            self.crew_chat_inputs = crew_chat_generate_crew_chat_inputs(
+                self.crew,
+                self.crew_name,
+                self.chat_llm
+            )
+            _CREW_INPUTS_CACHE[cache_key] = self.crew_chat_inputs
+        else:
+            self.crew_chat_inputs = _CREW_INPUTS_CACHE[cache_key]
+
+        self.crew_tool_schema = crew_chat_generate_crew_tool_schema(self.crew_chat_inputs)
+        self.system_message = crew_chat_build_system_message(self.crew_chat_inputs)
+
+        super().__init__()
+
+    @start()
+    async def chat(self):
+        """Chat with the crew"""
+
+        system_message = self.system_message
+        if self.state.get("inputs"):
+            system_message += "\n\nCurrent inputs: " + json.dumps(self.state["inputs"])
+
+        messages = [
+            {
+                "role": "system",
+                "content": system_message,
+                "id": self.thread_id + "-system"
+            },
+            *self.state["messages"]
+        ]
+
+        tools = [action for action in self.state["copilotkit"]["actions"]
+                 if action["function"]["name"] != self.crew_name]
+
+        tools += [self.crew_tool_schema, CREW_EXIT_TOOL]
+
+        response = await copilotkit_stream(
+            completion(
+                model=self.crew.chat_llm,
+                messages=messages,
+                tools=tools,
+                parallel_tool_calls=False,
+                stream=True
+            )
+        )
+
+        message = cast(Any, response).choices[0]["message"]
+        self.state["messages"].append(message)
+
+        if message.get("tool_calls"):
+            if message["tool_calls"][0]["function"]["name"] == self.crew_name:
+                # run the crew
+                crew_function = crew_chat_create_tool_function(self.crew, messages)
+                args = json.loads(message["tool_calls"][0]["function"]["arguments"])
+                result = crew_function(**args)
+
+                if isinstance(result, str):
+                    self.state["outputs"] = result
+                elif hasattr(result, "json_dict"):
+                    self.state["outputs"] = result.json_dict
+                elif hasattr(result, "raw"):
+                    self.state["outputs"] = result.raw
+                else:
+                    raise ValueError("Unexpected result type", type(result))
+
+                self.state["messages"].append({
+                    "role": "tool",
+                    "content": result,
+                    "tool_call_id": message["tool_calls"][0]["id"]
+                })
+            elif message["tool_calls"][0]["function"]["name"] == CREW_EXIT_TOOL["function"]["name"]:
+                await copilotkit_exit()
+                self.state["messages"].append({
+                    "role": "tool",
+                    "content": "Crew exited",
+                    "tool_call_id": message["tool_calls"][0]["id"]
+                })
+
+                response = await copilotkit_stream(
+                    completion( # pylint: disable=too-many-arguments
+                        model=self.crew.chat_llm,
+                        messages = [
+                            {
+                                "role": "system",
+                                "content": "Indicate to the user that the crew has exited",
+                                "id": self.thread_id + "-system"
+                            },
+                            *self.state["messages"]
+                        ],
+                        tools=tools,
+                        parallel_tool_calls=False,
+                        stream=True,
+                        tool_choice="none"
+                    )
+                )
+                message = cast(Any, response).choices[0]["message"]
+                self.state["messages"].append(message)
+
+
+
+================================================
+FILE: sdk-python/copilotkit/crewai/crewai_sdk.py
+================================================
+"""
+CrewAI integration for CopilotKit
+"""
+
+import uuid
+import json
+import asyncio
+from typing_extensions import Any, Dict, List, Literal
+from pydantic import BaseModel, Field
+from litellm.types.utils import (
+  ModelResponse,
+  Choices,
+  Message as LiteLLMMessage,
+  ChatCompletionMessageToolCall,
+  Function as LiteLLMFunction
+)
+from litellm.litellm_core_utils.streaming_handler import CustomStreamWrapper
+from crewai.flow.flow import FlowState, Flow
+from crewai.flow.flow_events import (
+  Event as CrewAIFlowEvent,
+  FlowStartedEvent,
+  MethodExecutionStartedEvent,
+  MethodExecutionFinishedEvent,
+  FlowFinishedEvent,
+)
+from copilotkit.types import Message
+from copilotkit.logging import get_logger
+from copilotkit.runloop import queue_put, get_context_execution
+from copilotkit.protocol import (
+    RuntimeEventTypes,
+    RunStarted,
+    RunFinished,
+    RunError,
+    NodeStarted,
+    NodeFinished,
+    agent_state_message,
+    text_message_start,
+    text_message_content,
+    text_message_end,
+    action_execution_start,
+    action_execution_args,
+    action_execution_end,
+    meta_event,
+    RuntimeMetaEventName,
+    PredictStateConfig
+)
+
+logger = get_logger(__name__)
+
+class CopilotKitProperties(BaseModel):
+    """CopilotKit properties"""
+    actions: List[Any] = Field(default_factory=list)
+
+class CopilotKitState(FlowState):
+    """CopilotKit state"""
+    messages: List[Any] = Field(default_factory=list)
+    copilotkit: CopilotKitProperties = Field(default_factory=CopilotKitProperties)
+
+async def crewai_flow_async_runner(flow: Flow, inputs: Dict[str, Any]):
+    """
+    Runs a flow in a separate thread. Workaround since the flow will use
+    asyncio.run().
+    """
+
+    async def crewai_flow_event_subscriber(flow: Any, event: CrewAIFlowEvent):
+        if isinstance(event, FlowStartedEvent):
+            await queue_put(RunStarted(
+                type=RuntimeEventTypes.RUN_STARTED,
+                state=flow.state
+            ), priority=True)
+        elif isinstance(event, MethodExecutionStartedEvent):
+            await queue_put(NodeStarted(
+                type=RuntimeEventTypes.NODE_STARTED,
+                node_name=event.method_name,
+                state=flow.state
+            ), priority=True)
+        elif isinstance(event, MethodExecutionFinishedEvent):
+            await queue_put(NodeFinished(
+                type=RuntimeEventTypes.NODE_FINISHED,
+                node_name=event.method_name,
+                state=flow.state
+            ), priority=True)
+        elif isinstance(event, FlowFinishedEvent):
+            await queue_put(RunFinished(
+                type=RuntimeEventTypes.RUN_FINISHED,
+                state=flow.state
+            ), priority=True)
+
+    def crewai_flow_event_subscriber_sync(flow: Any, event: CrewAIFlowEvent):
+        loop = asyncio.get_running_loop()
+        loop.call_soon(lambda: asyncio.create_task(crewai_flow_event_subscriber(flow, event)))
+
+    flow.event_emitter.connect(crewai_flow_event_subscriber_sync)
+
+    try:
+        flow.event_emitter.send(
+            flow,
+            event=FlowStartedEvent(
+                type="flow_started",
+                flow_name=flow.__class__.__name__,
+            ),
+        )
+
+        flow._initialize_state(inputs) # pylint: disable=protected-access
+        await flow.kickoff_async()
+    except Exception as e: # pylint: disable=broad-except
+        await queue_put(RunError(
+            type=RuntimeEventTypes.RUN_ERROR,
+            error=e
+        ))
+
+async def copilotkit_emit_state(state: Any) -> Literal[True]:
+    """
+    Emits intermediate state to CopilotKit. 
+    Useful if you have a longer running node and you want to update the user with the current state of the node.
+
+    To install the CopilotKit SDK, run:
+
+    ```bash
+    pip install copilotkit[crewai]
+    ```
+
+    ### Examples
+
+    ```python
+    from copilotkit.crewai import copilotkit_emit_state
+
+    for i in range(10):
+        await some_long_running_operation(i)
+        await copilotkit_emit_state({"progress": i})
+    ```
+
+    Parameters
+    ----------
+    state : Any
+        The state to emit (Must be JSON serializable).
+
+    Returns
+    -------
+    Awaitable[bool]
+        Always return True.
+
+    """
+    execution = get_context_execution()
+
+    state_as_dict = state.model_dump() if isinstance(state, BaseModel) else state
+    state = {
+        k: v for k, v in state_as_dict.items() if k not in ["messages", "copilotkit"]
+    }
+
+    await queue_put(
+        agent_state_message(
+            thread_id=execution["thread_id"],
+            agent_name=execution["agent_name"],
+            node_name=execution["node_name"],
+            run_id=execution["run_id"],
+            active=True,
+            role="assistant",
+            state=json.dumps(state_as_dict),
+            running=True
+        )
+    )
+
+
+    return True
+
+async def copilotkit_emit_message(message: str) -> str:
+    """
+    Manually emits a message to CopilotKit. Useful in longer running nodes to update the user.
+    Important: You still need to return the messages from the node.
+
+    ### Examples
+
+    ```python
+    from copilotkit.crewai import copilotkit_emit_message
+
+    message = "Step 1 of 10 complete"
+    await copilotkit_emit_message(message)
+
+    # Return the message from the node
+    return {
+        "messages": [AIMessage(content=message)]
+    }
+    ```
+
+    Parameters
+    ----------
+    message : str
+        The message to emit.
+
+    Returns
+    -------
+    Awaitable[bool]
+        Always return True.
+    """
+    message_id = str(uuid.uuid4())
+
+    await queue_put(
+        text_message_start(
+            message_id=message_id,
+            parent_message_id=None
+        ),
+        text_message_content(
+            message_id=message_id,
+            content=message
+        ),
+        text_message_end(
+            message_id=message_id
+        )
+    )
+
+    return message_id
+
+async def copilotkit_emit_tool_call(*, name: str, args: Dict[str, Any]) -> str:
+    """
+    Manually emits a tool call to CopilotKit.
+
+    ```python
+    from copilotkit.crewai import copilotkit_emit_tool_call
+
+    await copilotkit_emit_tool_call(name="SearchTool", args={"steps": 10})
+    ```
+
+    Parameters
+    ----------
+    name : str
+        The name of the tool to emit.
+    args : Dict[str, Any]
+        The arguments to emit.
+
+    Returns
+    -------
+    Awaitable[bool]
+        Always return True.
+    """
+    message_id = str(uuid.uuid4())
+    await queue_put(
+        action_execution_start(
+            action_execution_id=message_id,
+            action_name=name,
+            parent_message_id=message_id
+        ),
+        action_execution_args(
+            action_execution_id=message_id,
+            args=json.dumps(args)
+        ),
+        action_execution_end(
+            action_execution_id=message_id
+        )
+    )
+
+    return message_id
+
+
+async def copilotkit_stream(response):
+    """
+    Stream litellm responses token by token to CopilotKit.
+
+    ```python
+    response = await copilotkit_stream(
+        completion(
+            model="openai/gpt-4o",
+            messages=messages,
+            tools=tools,
+            stream=True # this must be set to True for streaming
+        )
+    )
+    ```
+    """
+    if isinstance(response, ModelResponse):
+        return _copilotkit_stream_response(response)
+    if isinstance(response, CustomStreamWrapper):
+        return await _copilotkit_stream_custom_stream_wrapper(response)
+    raise ValueError("Invalid response type")
+
+
+async def _copilotkit_stream_custom_stream_wrapper(response: CustomStreamWrapper):
+    message_id: str = ""
+    tool_call_id: str = ""
+    content = ""
+    created = 0
+    model = ""
+    system_fingerprint = ""
+    finish_reason=None
+    mode = None
+    all_tool_calls = []
+
+    for chunk in response:
+        if message_id is None:
+            message_id = chunk["id"]
+
+        tool_calls = chunk["choices"][0]["delta"]["tool_calls"]
+        finish_reason = chunk["choices"][0]["finish_reason"]
+        created = chunk["created"]
+        model = chunk["model"]
+        system_fingerprint = chunk["system_fingerprint"]
+
+        if mode == "text" and (tool_calls is not None or finish_reason is not None):
+            # end the current text message
+            await queue_put(
+                text_message_end(
+                    message_id=message_id
+                )
+            )
+            
+        elif mode == "tool" and (tool_calls is None or finish_reason is not None):
+            # end the current tool call
+            await queue_put(
+                action_execution_end(
+                    action_execution_id=tool_call_id
+                )
+            )
+
+        if finish_reason is not None:
+            break
+
+        if mode != "text" and tool_calls is None:
+            # start a new text message
+            await queue_put(
+                text_message_start(
+                    message_id=message_id,
+                    parent_message_id=None
+                )
+            )
+        elif mode != "tool" and tool_calls is not None and tool_calls[0].id is not None:
+            # start a new tool call
+            tool_call_id = tool_calls[0].id
+
+            await queue_put(
+                action_execution_start(
+                    action_execution_id=tool_call_id,
+                    action_name=tool_calls[0].function["name"],
+                    parent_message_id=message_id
+                )
+            )
+
+            all_tool_calls.append(
+                {
+                    "id": tool_call_id,
+                    "name": tool_calls[0].function["name"],
+                    "arguments": "",
+                }
+            )
+
+        mode = "tool" if tool_calls is not None else "text"
+
+        if mode == "text":
+            text_content = chunk["choices"][0]["delta"]["content"]
+            if text_content is not None:
+                content += text_content
+                await queue_put(
+                    text_message_content(
+                        message_id=message_id,
+                        content=text_content
+                    )
+                )
+
+        elif mode == "tool":
+            tool_arguments = tool_calls[0].function["arguments"]
+            if tool_arguments is not None:
+                await queue_put(
+                    action_execution_args(
+                        action_execution_id=tool_call_id,
+                        args=tool_arguments
+                    )
+                )
+
+                all_tool_calls[-1]["arguments"] += tool_arguments
+
+    tool_calls = [
+        ChatCompletionMessageToolCall(
+            function=LiteLLMFunction(
+                arguments=tool_call["arguments"],
+                name=tool_call["name"]
+            ),
+            id=tool_call["id"],
+            type="function"
+        )
+        for tool_call in all_tool_calls
+    ]
+    return ModelResponse(
+        id=message_id,
+        created=created,
+        model=model,
+        object='chat.completion',
+        system_fingerprint=system_fingerprint,
+        choices=[
+            Choices(
+                finish_reason=finish_reason,
+                index=0,
+                message=LiteLLMMessage(
+                    content=content,
+                    role='assistant',
+                    tool_calls=tool_calls if len(tool_calls) > 0 else None,
+                    function_call=None
+                )
+            )
+        ]
+    )
+
+def _copilotkit_stream_response(response: ModelResponse):
+    return response
+
+
+async def copilotkit_exit() -> Literal[True]:
+    """
+    Exits the current agent after the run completes. Calling copilotkit_exit() will
+    not immediately stop the agent. Instead, it signals to CopilotKit to stop the agent after
+    the run completes.
+
+    ### Examples
+
+    ```python
+    from copilotkit.crewai import copilotkit_exit
+
+    def my_function():
+        await copilotkit_exit()
+        return state
+    ```
+
+    Returns
+    -------
+    Awaitable[bool]
+        Always return True.
+    """
+    await queue_put(
+        meta_event(
+            name=RuntimeMetaEventName.EXIT,
+            value=True
+        )
+    )
+    return True
+
+
+async def copilotkit_predict_state(
+        config: Dict[str, PredictStateConfig]
+    ) -> Literal[True]:
+    """
+    Stream tool calls as state to CopilotKit.
+
+    To emit a tool call as streaming CrewAI state, pass the destination key in state,
+    the tool name and optionally the tool argument. (If you don't pass the argument name,
+    all arguments are emitted under the state key.)
+
+    ```python
+    from copilotkit.crewai import copilotkit_predict_state
+
+    await copilotkit_predict_state(
+        {
+            "steps": {
+                "tool_name": "SearchTool",
+                "tool_argument": "steps",
+            },
+        }
+    )
+    ```
+
+    Parameters
+    ----------
+    config : Dict[str, CopilotKitPredictStateConfig]
+        The configuration to predict the state.
+
+    Returns
+    -------
+    Awaitable[bool]
+        Always return True.
+    """
+
+    await queue_put(
+        meta_event(
+            name=RuntimeMetaEventName.PREDICT_STATE,
+            value=config
+        )
+    )
+    return True
+
+
+def copilotkit_messages_to_crewai_flow(messages: List[Message]) -> List[Any]:
+    """
+    Convert CopilotKit messages to CrewAI Flow messages
+    """
+    result = []
+    processed_action_executions = set()
+
+    for message in messages:
+        message_id = message["id"]
+        message_type = message.get("type")
+
+        if message_type == "TextMessage":
+            result.append({
+                "id": message_id,
+                "role": message.get("role"),
+                "content": message.get("content")
+            })
+        elif message_type == "ActionExecutionMessage":
+            # convert multiple tool calls to a single message
+            original_message_id = message.get("parentMessageId", message_id)
+            if original_message_id in processed_action_executions:
+                continue
+
+            processed_action_executions.add(original_message_id)
+
+            all_tool_calls = []
+
+            # Find all tool calls for this message
+            for msg in messages:
+                msg_id = msg["id"]
+                if (msg.get("parentMessageId", None) == original_message_id or
+                    msg_id == original_message_id):
+                    all_tool_calls.append(msg)
+
+            tool_calls = [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": t["name"],
+                        "arguments": json.dumps(t["arguments"]),
+                    },
+                    "id": t["id"],
+                } for t in all_tool_calls]
+
+            result.append(
+                {
+                    "id": original_message_id,
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": tool_calls
+                }
+            )
+
+        elif message_type == "ResultMessage":
+            result.append(
+                {
+                    "id": message_id,
+                    "role": "tool",
+                    "tool_call_id": message.get("actionExecutionId"),
+                    "content": message.get("result"),
+                }
+            )
+
+    return result
+
+def crewai_flow_messages_to_copilotkit(messages: List[Dict]) -> List[Message]: # pylint: disable=too-many-branches
+    """
+    Convert CrewAI Flow messages to CopilotKit messages
+    """
+    result = []
+    tool_call_names = {}
+
+    message_ids = {
+        id(m): m.get("id", str(uuid.uuid4())) for m in messages
+    }
+
+    for message in messages:
+        if "content" in message and message.get("role") == "assistant":
+            if message.get("tool_calls"):
+                for tool_call in message["tool_calls"]:
+                    tool_call_names[tool_call["id"]] = tool_call["function"]["name"]
+
+    for message in messages:
+        message_id = message_ids[id(message)]
+
+        if message.get("role") == "tool":
+            result.append({
+                "actionExecutionId": message["tool_call_id"],
+                "actionName": tool_call_names.get(message["tool_call_id"], message.get("name", "")),
+                "result": message["content"],
+                "id": message_id,
+            })
+        elif message.get("tool_calls"):
+            for tool_call in message["tool_calls"]:
+                if tool_call.get("function"):
+                    result.append({
+                        "id": tool_call["id"],
+                        "name": tool_call["function"]["name"],
+                        "arguments": json.loads(tool_call["function"]["arguments"]),
+                        "parentMessageId": message_id,
+                    })
+                else:
+                    result.append({
+                        "id": tool_call["id"],
+                        "name": tool_call["name"],
+                        "arguments": tool_call["arguments"],
+                        "parentMessageId": message_id,
+                    })
+        elif message.get("content"):
+            result.append({
+                "role": message["role"],
+                "content": message["content"],
+                "id": message_id,
+            })
+
+    # Create a dictionary to map message ids to their corresponding messages
+    results_dict = {msg["actionExecutionId"]: msg for msg in result if "actionExecutionId" in msg}
+
+
+    # since we are splitting multiple tool calls into multiple messages,
+    # we need to reorder the corresponding result messages to be after the tool call
+    reordered_result = []
+
+    for msg in result:
+
+        # add all messages that are not tool call results
+        if not "actionExecutionId" in msg:
+            reordered_result.append(msg)
+
+        # if the message is a tool call, also add the corresponding result message
+        # immediately after the tool call
+        if msg.get("name"):
+            msg_id = msg["id"]
+            if msg_id in results_dict:
+                reordered_result.append(results_dict[msg_id])
+            else:
+                logger.warning("Tool call result message not found for id: %s", msg_id)
+
+    return reordered_result
+
+
+
+================================================
+FILE: sdk-python/copilotkit/integrations/__init__.py
+================================================
+
+
+
+================================================
+FILE: sdk-python/copilotkit/integrations/fastapi.py
+================================================
+"""FastAPI integration"""
+
+import logging
+import asyncio
+import re
+import uuid
+import warnings
+from concurrent.futures import ThreadPoolExecutor
+from typing import List, Any, cast, Optional
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import JSONResponse, StreamingResponse, HTMLResponse
+from ..sdk import CopilotKitRemoteEndpoint, CopilotKitContext
+from ..types import Message, MetaEvent
+from ..exc import (
+    ActionNotFoundException,
+    ActionExecutionException,
+    AgentNotFoundException,
+    AgentExecutionException,
+)
+from ..action import ActionDict
+from ..html import generate_info_html
+logging.basicConfig(level=logging.ERROR)
+logger = logging.getLogger(__name__)
+
+def add_fastapi_endpoint(
+        fastapi_app: FastAPI,
+        sdk: CopilotKitRemoteEndpoint,
+        prefix: str,
+        *,
+        use_thread_pool: bool = False,
+        max_workers: int = 10,
+    ):
+    """Add FastAPI endpoint with configurable ThreadPoolExecutor size"""
+    if use_thread_pool:
+        warnings.warn(
+            "The 'use_thread_pool' parameter is deprecated " + 
+            "and will be removed in a future version.",
+            DeprecationWarning
+        )
+
+    def run_handler_in_thread(request: Request, sdk: CopilotKitRemoteEndpoint):
+        # Run the handler coroutine in the event loop
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        return loop.run_until_complete(handler(request, sdk))
+
+    async def make_handler(request: Request):
+        if use_thread_pool:
+            executor = ThreadPoolExecutor(max_workers=max_workers)
+            loop = asyncio.get_event_loop()
+            future = loop.run_in_executor(executor, run_handler_in_thread, request, sdk)
+            return await future
+        return await handler(request, sdk)
+
+
+    # Ensure the prefix starts with a slash and remove trailing slashes
+    normalized_prefix = '/' + prefix.strip('/')
+
+    fastapi_app.add_api_route(
+        f"{normalized_prefix}/{{path:path}}",
+        make_handler,
+        methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    )
+
+def body_get_or_raise(body: Any, key: str):
+    """Get value from body or raise an error"""
+    value = body.get(key)
+    if value is None:
+        raise HTTPException(status_code=400, detail=f"{key} is required")
+    return value
+
+
+async def handler(request: Request, sdk: CopilotKitRemoteEndpoint):
+    """Handle FastAPI request"""
+
+    try:
+        body = await request.json()
+    except: # pylint: disable=bare-except
+        body = None
+
+    path = request.path_params.get('path')
+    method = request.method
+    context = cast(
+        CopilotKitContext,
+        {
+            "properties": (body or {}).get("properties", {}),
+            "frontend_url": (body or {}).get("frontendUrl", None),
+            "headers": request.headers,
+        }
+    )
+
+    # handle / request for info endpoint
+    if method in ['GET', 'POST'] and path == '':
+        accept_header = request.headers.get('accept', '')
+        return await handle_info(
+            sdk=sdk,
+            context=context,
+            as_html='text/html' in accept_header,
+        )
+
+    # handle /agent/name request for executing an agent
+    if method == 'POST' and (match := re.match(r'agent/([a-zA-Z0-9_-]+)', path)):
+        name = match.group(1)
+        body = body or {}
+
+        thread_id = body.get("threadId", str(uuid.uuid4()))
+        state = body.get("state", {})
+        messages = body.get("messages", [])
+        actions = body.get("actions", [])
+
+        # used for LangGraph only
+        node_name = body.get("nodeName")
+
+        return handle_execute_agent(
+            sdk=sdk,
+            context=context,
+            thread_id=thread_id,
+            node_name=node_name,
+            name=name,
+            state=state,
+            messages=messages,
+            actions=actions,
+        )
+
+    # handle /agent/name/state request for getting agent state
+    if method == 'POST' and (match := re.match(r'agent/([a-zA-Z0-9_-]+)/state', path)):
+        name = match.group(1)
+        thread_id = body_get_or_raise(body, "threadId")
+
+        return await handle_get_agent_state(
+            sdk=sdk,
+            context=context,
+            thread_id=thread_id,
+            name=name,
+        )
+
+    # handle /action/name request for executing an action
+    if method == 'POST' and (match := re.match(r'action/([a-zA-Z0-9_-]+)', path)):
+        name = match.group(1)
+        arguments = body.get("arguments", {})
+
+        return await handle_execute_action(
+            sdk=sdk,
+            context=context,
+            name=name,
+            arguments=arguments,
+        )
+
+    # v2: POST /agents/name/state
+
+    # Deal with backwards compatibility
+    result_v1 = await handler_v1(
+        sdk=sdk,
+        method=method,
+        path=path,
+        body=body,
+        context=context,
+    )
+
+    if result_v1 is not None:
+        return result_v1
+
+
+    raise HTTPException(status_code=404, detail="Not found")
+
+async def handler_v1(
+        sdk: CopilotKitRemoteEndpoint,
+        method: str,
+        path: str,
+        body: Any,
+        context: CopilotKitContext,
+    ):
+    """Handle FastAPI request for v1"""
+
+    if body is None:
+        raise HTTPException(status_code=400, detail="Request body is required")
+
+    if method == 'POST' and path == 'info':
+        return await handle_info(sdk=sdk, context=context)
+
+
+    if method == 'POST' and path == 'actions/execute':
+        name = body_get_or_raise(body, "name")
+        arguments = body.get("arguments", {})
+
+        return await handle_execute_action(
+            sdk=sdk,
+            context=context,
+            name=name,
+            arguments=arguments,
+        )
+
+    if method == 'POST' and path == 'agents/execute':
+        thread_id = body.get("threadId")
+        node_name = body.get("nodeName")
+        configurable = body.get("configurable")
+
+        name = body_get_or_raise(body, "name")
+        state = body_get_or_raise(body, "state")
+        messages = body_get_or_raise(body, "messages")
+        actions = cast(List[ActionDict], body.get("actions", []))
+        meta_events = cast(List[MetaEvent], body.get("metaEvents", []))
+
+        return handle_execute_agent(
+            sdk=sdk,
+            context=context,
+            thread_id=thread_id,
+            node_name=node_name,
+            name=name,
+            state=state,
+            configurable=configurable,
+            messages=messages,
+            actions=actions,
+            meta_events=meta_events,
+        )
+
+
+    if method == 'POST' and path == 'agents/state':
+        thread_id = body_get_or_raise(body, "threadId")
+        name = body_get_or_raise(body, "name")
+
+        return await handle_get_agent_state(
+            sdk=sdk,
+            context=context,
+            thread_id=thread_id,
+            name=name,
+        )
+
+    return None
+
+
+async def handle_info(
+        *,
+        sdk: CopilotKitRemoteEndpoint,
+        context: CopilotKitContext,
+        as_html: bool = False,
+    ):
+    """Handle info request with FastAPI"""
+    result = sdk.info(context=context)
+    if as_html:
+        return HTMLResponse(content=generate_info_html(result))
+    return JSONResponse(content=result)
+
+async def handle_execute_action(
+        *,
+        sdk: CopilotKitRemoteEndpoint,
+        context: CopilotKitContext,
+        name: str,
+        arguments: dict,
+    ):
+    """Handle execute action request with FastAPI"""
+    try:
+        result = await sdk.execute_action(
+            context=context,
+            name=name,
+            arguments=arguments
+        )
+        return JSONResponse(content=result)
+    except ActionNotFoundException as exc:
+        logger.error("Action not found: %s", exc)
+        return JSONResponse(content={"error": str(exc)}, status_code=404)
+    except ActionExecutionException as exc:
+        logger.error("Action execution error: %s", exc)
+        return JSONResponse(content={"error": str(exc)}, status_code=500)
+    except Exception as exc: # pylint: disable=broad-except
+        logger.error("Action execution error: %s", exc)
+        return JSONResponse(content={"error": str(exc)}, status_code=500)
+
+def handle_execute_agent( # pylint: disable=too-many-arguments
+        *,
+        sdk: CopilotKitRemoteEndpoint,
+        context: CopilotKitContext,
+        thread_id: str,
+        name: str,
+        state: dict,
+        configurable: Optional[dict] = None,
+        messages: List[Message],
+        actions: List[ActionDict],
+        node_name: str,
+        meta_events: Optional[List[MetaEvent]] = None,
+    ):
+    """Handle continue agent execution request with FastAPI"""
+    try:
+        events = sdk.execute_agent(
+            context=context,
+            thread_id=thread_id,
+            name=name,
+            node_name=node_name,
+            state=state,
+            configurable=configurable,
+            messages=messages,
+            actions=actions,
+            meta_events=meta_events,
+        )
+        return StreamingResponse(events, media_type="application/json")
+    except AgentNotFoundException as exc:
+        logger.error("Agent not found: %s", exc, exc_info=True)
+        return JSONResponse(content={"error": str(exc)}, status_code=404)
+    except AgentExecutionException as exc:
+        logger.error("Agent execution error: %s", exc, exc_info=True)
+        return JSONResponse(content={"error": str(exc)}, status_code=500)
+    except Exception as exc: # pylint: disable=broad-except
+        logger.error("Agent execution error: %s", exc, exc_info=True)
+        return JSONResponse(content={"error": str(exc)}, status_code=500)
+
+async def handle_get_agent_state(
+        *,
+        sdk: CopilotKitRemoteEndpoint,
+        context: CopilotKitContext,
+        thread_id: str,
+        name: str,
+    ):
+    """Handle get agent state request with FastAPI"""
+    try:
+        result = await sdk.get_agent_state(
+            context=context,
+            thread_id=thread_id,
+            name=name,
+        )
+        return JSONResponse(content=result)
+    except AgentNotFoundException as exc:
+        logger.error("Agent not found: %s", exc, exc_info=True)
+        return JSONResponse(content={"error": str(exc)}, status_code=404)
+    except Exception as exc: # pylint: disable=broad-except
+        logger.error("Agent get state error: %s", exc, exc_info=True)
+        return JSONResponse(content={"error": str(exc)}, status_code=500)
+
+
