@@ -24,14 +24,22 @@ from agno.run.response import (
     RunEvent as AgnoRunEvent
 )
 
-class CopilotKitAgnoProperties(BaseModel):
+class TimelineEvent(BaseModel):
+    """Represents a single event in the lifecycle timeline."""
+    event_type: str
+    event_summary: str
+    event_details: str
+
+class CopilotKitStateProperties(BaseModel):
     """CopilotKit properties"""
     actions: List[Any] = Field(default_factory=list)
 
-class CopilotKitAgnoState(Dict[str, Any]):
+class CopilotKitAgnoState(BaseModel):
     """CopilotKit state"""
     messages: List[Any] = Field(default_factory=list)
-    copilotkit: CopilotKitAgnoProperties = Field(default_factory=CopilotKitAgnoProperties)
+    copilotkit: CopilotKitStateProperties = Field(default_factory=CopilotKitStateProperties)
+    event_timeline: List[TimelineEvent] = Field(default_factory=list) # Timeline of lifecycle events
+    session_state: Dict = Field(default_factory=dict)
 
 
 # --- Message Conversion ---

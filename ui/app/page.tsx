@@ -3,6 +3,7 @@
 import { useCopilotAction } from "@copilotkit/react-core";
 import { CopilotSidebar } from "@copilotkit/react-ui";
 import { useState } from "react";
+import { Timeline } from "./components/Timeline";
 
 export default function Home() {
   return (
@@ -57,15 +58,12 @@ function YourMainContent() {
     },
   });
 
-  // Render the main content
   return (
     <div
       style={{ backgroundColor }}
       className="h-screen w-screen flex justify-center items-center flex-col"
     >
-      <h1 className="bg-blue-500 p-10 rounded-xl text-white text-4xl">
-        Your main content
-      </h1>
+      <Timeline />
     </div>
   );
 }

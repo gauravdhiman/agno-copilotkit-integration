@@ -3,7 +3,7 @@ import asyncio
 import json
 import traceback
 import uuid
-from typing import Any, AsyncGenerator, Dict, List, Optional, Set
+from typing import Any, AsyncGenerator, Generator, Dict, List, Optional, Set
 
 from copilotkit.agent import Agent as CopilotKitAgentBase
 from copilotkit.action import ActionDict

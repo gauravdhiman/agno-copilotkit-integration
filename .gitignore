@@ -1,5 +1,6 @@
 # Hidden folders
 **/tmp/
+**/*old*/
 *_old*
 # Python
 **/__pycache__/
