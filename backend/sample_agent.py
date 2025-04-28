@@ -9,6 +9,7 @@ from agno.models.google import Gemini
 from agno.models.openrouter import OpenRouter
 from agno.models.groq import Groq
 from agno.tools.googlesearch import GoogleSearchTools
+from agno.tools.yfinance import YFinanceTools
 from agno.storage.sqlite import SqliteStorage
 from agno.utils.pprint import pprint_run_response
 from agno.tools import FunctionCall, tool
@@ -33,6 +34,7 @@ human_summary_agent = Agent(
 )
 
 GoogleSearchToolKit = GoogleSearchTools()
+# YFinanceToolKit = YFinanceTools()
 
 def google_search(
     agent: Agent,
@@ -80,7 +82,8 @@ sample_agent = Agent(
     # num_history_responses=5,
     tools=[
         # GoogleSearchTools()
-        google_search
+        google_search,
+        YFinanceTools(enable_all=True)
     ],
     # reasoning=True,
     stream_intermediate_steps=True,

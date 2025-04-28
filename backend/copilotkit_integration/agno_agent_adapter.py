@@ -1,4 +1,5 @@
 # copilotkit_integration/agno_agent_adapter.py
+import json
 import traceback
 import uuid
 import copy
@@ -13,7 +14,7 @@ from copilotkit.protocol import (
     NodeStarted, NodeFinished, RunStarted, RunFinished, RunError,
 )
 from copilotkit.runloop import (
-    copilotkit_run, CopilotKitRunExecution, get_context_execution, queue_put
+    AgentStateMessage, agent_state_message, copilotkit_run, CopilotKitRunExecution, get_context_execution, queue_put
 )
 
 # Import Agno classes
@@ -80,6 +81,7 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
              messages=[],
              copilotkit=self.copilot_agno_state.copilotkit,
              event_timeline=self.copilot_agno_state.event_timeline,
+            #  event_timeline=[copy.deepcopy(self.copilot_agno_state.event_timeline[-1])] if self.copilot_agno_state.event_timeline else [],
              session_state=copy.deepcopy(self.agno_agent.session_state or {})
         ) # Preserve existing timeline and copilotkit
 
@@ -198,6 +200,7 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
                 for event in protocol_events:
                     event_type = event["type"]
 
+                    #  --- Handle simple text message, send START if required (if new message). If subsequent chunk, dont send START
                     if event_type == RuntimeEventTypes.TEXT_MESSAGE_CONTENT:
                         is_text_chunk = True
                         if current_text_message_id is None:
@@ -208,6 +211,12 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
                         event["messageId"] = current_text_message_id # Use the active message ID
                         events_to_queue.append(event)
 
+                    # --- TODO: We need to handle ACTION_EXECUTION_START, ACTION_EXECUTION_ARGS and ACTION_EXECUTION_END also for frontend actions ---
+                    # This would require defining a tool for Agno to somehow pass the control to frontend. Need to think on this.
+
+                    
+                    # --- Handle ACTION_EXECUTION_RESULT, this will only happen when server side action is executed (sign of tool call ended). For now
+                    # this is not implemented in Agno as Agno have its own tools, but may be can keep it for future.
                     elif event_type == RuntimeEventTypes.ACTION_EXECUTION_RESULT:
                         # If a text message was ongoing, end it before emitting tool result
                         if current_text_message_id is not None:
@@ -222,6 +231,7 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
                             args_event = next((e for e in protocol_events if e["type"] == RuntimeEventTypes.ACTION_EXECUTION_ARGS and e["actionExecutionId"] == tool_call_id), None)
                             end_event = next((e for e in protocol_events if e["type"] == RuntimeEventTypes.ACTION_EXECUTION_END and e["actionExecutionId"] == tool_call_id), None)
 
+                            # ??? This needs to be re-looked, as per map_agno_chunk_to_copilotkit_protocol_events(), START, ARG and END wont happen together
                             if start_event and args_event and end_event:
                                 events_to_queue.append(start_event)
                                 events_to_queue.append(args_event)
@@ -251,17 +261,20 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
                 if agno_event_type == AgnoRunEvent.reasoning_started.value:
                     event_summary = "Agent started reasoning."
                 elif agno_event_type == AgnoRunEvent.reasoning_completed.value:
-                    # Extract reasoning details if available in the chunk's content or metadata
+                    # Extract reasoning details if available in the chunk's thinking, content or metadata
                     reasoning_details = getattr(agno_chunk, 'thinking', getattr(agno_chunk, 'content', None)) # Example: adjust based on actual chunk structure
                     if reasoning_details:
-                        event_summary = f"Agent finished reasoning: {reasoning_details}"
+                        event_summary = f"Agent finished reasoning."
+                        event_details = f"{reasoning_details}"
                     else:
                         event_summary = "Agent finished reasoning."
+                # TODO: we are not yet handling reasoning_step type, we should do that may be in future
+                # elif agno_event_type == AgnoRunEvent.reasoning_step.value:
                 elif agno_event_type == AgnoRunEvent.tool_call_started.value:
                     tool_name = "unknown tool"
                     if agno_chunk.tools and len(agno_chunk.tools) > 0:
                         # Get tool name, make it more readable by replacing underscores with spaces
-                        tool_name = agno_chunk.tools[0].get('tool_name', tool_name).replace('_', ' ')
+                        tool_name = agno_chunk.tools[-1].get('tool_name', tool_name).replace('_', ' ')
                     event_summary = f"Agent started calling tool: {tool_name}"
                 elif agno_event_type == AgnoRunEvent.tool_call_completed.value:
                     tool_name = "unknown tool"
@@ -291,10 +304,14 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
                     current_state = self.copilot_agno_state.model_dump() # Get state WITH timeline
 
                     # Emit corresponding CopilotKit lifecycle events
+                    # IMP note: NODE_STARTED and NODE_FINISHED gets translated to AGENT_STATE_MESSAGE internally in runloop.py - check handle_runtime_event()
+                    #  so we dont need to explicitly create AGENT_STATE_MESSAGE messages.
                     if agno_event_type == AgnoRunEvent.reasoning_started.value:
                         await queue_put(NodeStarted(type=RuntimeEventTypes.NODE_STARTED, node_name="reasoning_started", state=current_state))
                     elif agno_event_type == AgnoRunEvent.reasoning_completed.value:
                         await queue_put(NodeFinished(type=RuntimeEventTypes.NODE_FINISHED, node_name="reasoning_ended", state=current_state))
+                    # TODO: handle reasoning_step in future
+                    # elif agno_event_type == AgnoRunEvent.reasoning_step.value:
                     elif agno_event_type == AgnoRunEvent.tool_call_started.value:
                         await queue_put(NodeStarted(type=RuntimeEventTypes.NODE_STARTED, node_name="tool_call_started", state=current_state))
                     elif agno_event_type == AgnoRunEvent.tool_call_completed.value:
@@ -306,9 +323,6 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
                         await queue_put(RunError(type=RuntimeEventTypes.RUN_ERROR, error=str(agno_chunk.content)), priority=True)
                         # Also emit NodeFinished for the error state if needed, or rely on RunError/RunFinished
                         # await queue_put(NodeFinished(type=RuntimeEventTypes.NODE_FINISHED, node_name="error_state", state=current_state))
-
-                    # Reset summary after emitting the event
-                    # self.copilot_agno_state.event_summary = None # Removed - field doesn't exist
 
                 # Handle RunError specifically for RunFinished signal
                 if agno_event_type == AgnoRunEvent.run_error.value:
@@ -415,6 +429,9 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
             actions=actions or [],
             user_id=user_id, # Pass the determined user ID
         )
+
+        # TODO: May be a right place to define and regiter an Agno tool for client side action handling.
+        # How about updating the system prompt to inform Agno for this special tool ?
 
         # copilotkit_run takes the COROUTINE function (_process_agno_stream_and_queue)
         # and returns an ASYNC GENERATOR that yields the processed events.
