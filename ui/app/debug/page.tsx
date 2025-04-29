@@ -39,7 +39,7 @@ export default function TestAndChatPage() {
         simplified.nodeName = msg.nodeName;
         simplified.running = msg.running;
         simplified.active = msg.active;
-        simplified.stateSummary = JSON.stringify(msg.state).substring(0, 80) + "..."; // Truncate state too
+        simplified.stateSummary = msg.state //JSON.stringify(msg.state).substring(0, 80) + "..."; // Truncate state too
       }
       return simplified;
     });

@@ -1,4 +1,12 @@
 # copilotkit_integration/agno_agent_adapter.py
+""" 
+This page attempts to display agent state and text messages chronologically, but it's not working perfectly. 
+I think trying to force this is fighting CopilotKit's intended design and feels pretty hacky. It would be better 
+to align with CopilotKit's recommended approach. They only keep the latest agent state message, overriding previous ones. 
+This ensures the agent state message always appears at the top, followed by text messages, regardless of when they were triggered. 
+As a design pattern, it's better to follow this than to break things by going against CopilotKit's intended behavior.
+"""
+
 import json
 import traceback
 import uuid
@@ -45,11 +53,28 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
     def __init__(
         self,
         agno_agent_instance: AgnoAgentInternal,
-        user_id_property: str = "userId",
+        user_id_property: str = "userId",       # Revisit: Should user id even be here ??
         name=None,
         description=None,
+        last_tool_call_response_key_in_session_state:str= 'last_tool_call_response',
+        eligible_events_for_timeline:List[AgnoRunEvent]=[
+            AgnoRunEvent.tool_call_started,
+            AgnoRunEvent.tool_call_completed
+        ],
         **kwargs,
     ):
+        """
+        Wrapper class over Agno Agent to bridge the communication between Agno and Copilotkit.
+
+        Args:
+            agno_agent_instance (AgnoAgentInternal): An instance of an Agno agent that will be wrapped.
+            user_id_property (str, optional): Property name used to store the user ID. Defaults to "userId".
+            name (str, optional): Name for this agent adapter. If not provided, uses the Agno agent's name.
+            description (str, optional): Description for this agent adapter. If not provided, uses the Agno agent's description.
+            last_tool_call_response_key_in_session_state (str, optional): Key used to store the last tool call response in session state. 
+                Defaults to 'last_tool_call_response'.
+            **kwargs: Additional keyword arguments passed to the parent CopilotKitAgentBase class.
+        """
         super().__init__(
             name=name or agno_agent_instance.name or agno_agent_instance.__class__.__name__,
             description=description or agno_agent_instance.description,
@@ -57,6 +82,8 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
         )
         self.agno_agent = agno_agent_instance
         self.user_id_property = user_id_property
+        self.last_tool_call_response_key_in_session_state = last_tool_call_response_key_in_session_state
+        self.eligible_events_for_timeline = eligible_events_for_timeline
         # Initialize the state object
         self.copilot_agno_state = CopilotKitAgnoState(
             messages=[],
@@ -275,15 +302,15 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
                     if agno_chunk.tools and len(agno_chunk.tools) > 0:
                         # Get tool name, make it more readable by replacing underscores with spaces
                         tool_name = agno_chunk.tools[-1].get('tool_name', tool_name).replace('_', ' ')
-                    event_summary = f"Agent started calling tool: {tool_name}"
+                    event_summary = f"Calling tool: {tool_name}"
                 elif agno_event_type == AgnoRunEvent.tool_call_completed.value:
                     tool_name = "unknown tool"
                     tool_result = ""
-                    if self.agno_agent.session_state and 'last_tool_call_response' in self.agno_agent.session_state and self.agno_agent.session_state['last_tool_call_response']:
-                        tool_result = str(self.agno_agent.session_state['last_tool_call_response'])
+                    if self.agno_agent.session_state and self.last_tool_call_response_key_in_session_state in self.agno_agent.session_state and self.agno_agent.session_state[self.last_tool_call_response_key_in_session_state]:
+                        tool_result = str(self.agno_agent.session_state[self.last_tool_call_response_key_in_session_state])
                     if agno_chunk.tools and len(agno_chunk.tools) > 0:
                         tool_name = agno_chunk.tools[0].get('tool_name', tool_name).replace('_', ' ')
-                    event_summary = f"Agent finished calling tool: {tool_name}"
+                    event_summary = f"Finished calling tool: {tool_name}"
                     event_details=f"{tool_result}"
                 elif agno_event_type == AgnoRunEvent.updating_memory.value:
                     event_summary = "Agent is updating its memory."
@@ -296,11 +323,12 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
                 if event_summary:
                     self.update_copilot_agno_state() # Refresh base state
                     # Append the new event to the timeline
-                    self.copilot_agno_state.event_timeline.append(TimelineEvent(
-                        event_type=agno_event_type, # Use .value for enum
-                        event_summary=event_summary,
-                        event_details=event_details
-                    ))
+                    if(agno_event_type in self.eligible_events_for_timeline):
+                        self.copilot_agno_state.event_timeline.append(TimelineEvent(
+                            event_type=agno_event_type, # Use .value for enum
+                            event_summary=event_summary,
+                            event_details=event_details
+                        ))
                     current_state = self.copilot_agno_state.model_dump() # Get state WITH timeline
 
                     # Emit corresponding CopilotKit lifecycle events
@@ -314,6 +342,20 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
                     # elif agno_event_type == AgnoRunEvent.reasoning_step.value:
                     elif agno_event_type == AgnoRunEvent.tool_call_started.value:
                         await queue_put(NodeStarted(type=RuntimeEventTypes.NODE_STARTED, node_name="tool_call_started", state=current_state))
+                        # REVISIT (TEMP - NEEDS TO REMOVE): Send some dummy test text message to test the chronological order of messages dispaled
+                        # events_to_queue = []
+                        # e = TextMessageContent(type=RuntimeEventTypes.TEXT_MESSAGE_CONTENT, messageId="PLACEHOLDER_ID", content="This is test message just after tool calling started")
+                        # is_text_chunk = True
+                        # if current_text_message_id is None:
+                        #     # Start a new text message block if one isn't active
+                        #     current_text_message_id = str(uuid.uuid4())
+                        #     start_event = TextMessageStart(type=RuntimeEventTypes.TEXT_MESSAGE_START, messageId=current_text_message_id, parentMessageId=None) # type: ignore
+                        #     events_to_queue.append(start_event)
+                        # e["messageId"] = current_text_message_id # Use the active message ID
+                        # events_to_queue.append(e)
+                        # end_event = TextMessageStart(type=RuntimeEventTypes.TEXT_MESSAGE_END, messageId=current_text_message_id, parentMessageId=None) # type: ignore
+                        # events_to_queue.append(end_event)
+                        # await queue_put(*events_to_queue)
                     elif agno_event_type == AgnoRunEvent.tool_call_completed.value:
                         await queue_put(NodeFinished(type=RuntimeEventTypes.NODE_FINISHED, node_name="tool_call_ended", state=current_state))
                     elif agno_event_type == AgnoRunEvent.updating_memory.value:

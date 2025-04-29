@@ -2,7 +2,7 @@
 import json
 import uuid
 import time # Import time module
-from datetime import datetime, timezone, timedelta # Import datetime stuff
+from datetime import date, datetime, timezone, timedelta # Import datetime stuff
 from typing import Any, Dict, List, Optional, Sequence, cast, Set
 from pydantic import BaseModel, Field, ConfigDict
 
@@ -32,7 +32,9 @@ from agno.run.response import (
 class TimelineEvent(BaseModel):
     """Represents a single event in the lifecycle timeline."""
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    timestamp: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    timestamp: float = Field(default_factory=lambda: datetime.now(timezone.utc).timestamp())
+    readable_timestamp: str = Field(default_factory=lambda: datetime.fromtimestamp(datetime.now(timezone.utc).timestamp(), tz=timezone.utc).isoformat())
+    event_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     event_type: str
     event_summary: str
     event_details: str = ""
