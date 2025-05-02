@@ -33,6 +33,7 @@ from agno.run.response import RunResponse as AgnoRunResponse, RunEvent as AgnoRu
 from agno.exceptions import RunCancelledException
 from agno.memory import AgentMemory # Legacy Memory
 from agno.memory.v2 import Memory as MemoryV2 # New Memory
+from agno.utils.log import log_debug, log_error, log_exception, log_warning, log_info
 
 from .utils import (
     copilotkit_messages_to_agno,
@@ -130,8 +131,6 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
         from the underlying `self.agno_agent`. This should be called before
         emitting state-related events (RunStarted, NodeStarted, NodeFinished, RunFinished).
         """
-        print(f"[{self.name}] Updating CopilotKitAgnoState...") # Add logging
-
         # --- Preserve Timeline & Update State ---
         # Create new state while preserving existing timeline and copilotkit object
         new_state = CopilotKitAgnoState(
@@ -151,16 +150,15 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
                     try:
                         agno_messages = self.agno_agent.memory.get_messages_for_session(self.agno_agent.session_id)
                     except Exception as e:
-                        print(f"[{self.name}] Error getting V2 memory messages: {e}")
+                        log_exception(f"[Copilotkit-Agno][{self.name}] Error getting V2 memory messages: {e}")
             elif isinstance(self.agno_agent.memory, AgentMemory):
                  # Legacy AgentMemory
                 if self.agno_agent.memory.messages:
                     agno_messages = self.agno_agent.memory.messages
             else:
-                print(f"[{self.name}] Warning: Unknown Agno memory type: {type(self.agno_agent.memory)}")
+                log_warning(f"[Copilotkit-Agno][{self.name}] Unknown Agno memory type: {type(self.agno_agent.memory)}")
 
         new_state.messages = agno_messages_to_copilotkit(agno_messages)
-        print(f"[{self.name}] State updated with {len(new_state.messages)} messages.") # Add logging
 
         # --- Filtered Session State & Extra Data ---
         # Include filtered versions if they contain useful, non-sensitive data for the frontend
@@ -169,30 +167,27 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
             try:
                 filtered_session_state = filter_agno_state(self.agno_agent.session_state)
                 if filtered_session_state:
-                     print(f"[{self.name}] Adding filtered session_state to CopilotKit state: {list(filtered_session_state.keys())}") # Add logging
-                     # Decide where to put this - maybe a custom field?
-                     # For now, let's add it directly to the state object if needed later
-                     # Or potentially merge into the main state dict (less clean)
-                     # Option: Add a dedicated field to CopilotKitAgnoState if this is common
-                     setattr(new_state, 'session_state', filtered_session_state) # Add as a dynamic attribute for now
+                    log_info(f"[Copilotkit-Agno][{self.name}] Adding filtered session_state to CopilotKit state: {list(filtered_session_state.keys())}")
+                    # Decide where to put this - maybe a custom field?
+                    # For now, let's add it directly to the state object if needed later
+                    # Or potentially merge into the main state dict (less clean)
+                    # Option: Add a dedicated field to CopilotKitAgnoState if this is common
+                    setattr(new_state, 'session_state', filtered_session_state) # Add as a dynamic attribute for now
             except Exception as e:
-                print(f"[{self.name}] Error filtering Agno session_state: {e}")
+                log_exception(f"[Copilotkit-Agno][{self.name}] Error filtering Agno session_state: {e}")
 
         filtered_extra_data = {}
         if self.agno_agent.extra_data:
             try:
                 filtered_extra_data = filter_agno_state(self.agno_agent.extra_data)
                 if filtered_extra_data:
-                     print(f"[{self.name}] Adding filtered extra_data to CopilotKit state: {list(filtered_extra_data.keys())}") # Add logging
-                     # Similar decision as session_state
-                     setattr(new_state, 'extra_data', filtered_extra_data) # Add as a dynamic attribute for now
+                    log_info(f"[Copilotkit-Agno][{self.name}] Adding filtered extra_data to CopilotKit state: {list(filtered_extra_data.keys())}")
+                    # Similar decision as session_state
+                    setattr(new_state, 'extra_data', filtered_extra_data) # Add as a dynamic attribute for now
             except Exception as e:
-                print(f"[{self.name}] Error filtering Agno extra_data: {e}")
+                log_exception(f"[Copilotkit-Agno][{self.name}] Error filtering Agno extra_data: {e}")
 
-
-        # --- Assign the new state ---
         self.copilot_agno_state = new_state
-        print(f"[{self.name}] CopilotKitAgnoState update complete.") # Add logging
 
 
     def _setup_markdown_agent(self):
@@ -444,7 +439,7 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
 
         # --- Exception Handling ---
         except RunCancelledException:
-            print(f"[{agent_name}] Run {run_id} cancelled.")
+            log_info(f"[Copilotkit-Agno][{agent_name}] Run {run_id} cancelled.")
             if current_text_message_id is not None: await queue_put(TextMessageEnd(type=RuntimeEventTypes.TEXT_MESSAGE_END, messageId=current_text_message_id))
             # Update state before final RunFinished
             self.update_copilot_agno_state()
@@ -453,7 +448,7 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
             await queue_put(RunFinished(type=RuntimeEventTypes.RUN_FINISHED, state=final_state), priority=True)
             run_has_finished = True
         except Exception as e:
-            print(f"[{agent_name}] Error during Agno agent streaming: {e}")
+            log_exception(f"[Copilotkit-Agno][{agent_name}] Error during Agno agent streaming: {e}")
             traceback.print_exc()
             if current_text_message_id is not None: await queue_put(TextMessageEnd(type=RuntimeEventTypes.TEXT_MESSAGE_END, messageId=current_text_message_id))
             # Update state before RunError/RunFinished
@@ -468,20 +463,20 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
         finally:
             # This block ensures RunFinished is sent if the stream ends unexpectedly without error or cancellation
             if not run_has_finished:
-                 print(f"[{agent_name}] Agno stream ended unexpectedly for run {run_id}. Signalling RunFinished.")
-                 if current_text_message_id is not None: await queue_put(TextMessageEnd(type=RuntimeEventTypes.TEXT_MESSAGE_END, messageId=current_text_message_id))
-                 self.update_copilot_agno_state()
-                 final_state = self.copilot_agno_state.model_dump()
-                 await queue_put(RunFinished(type=RuntimeEventTypes.RUN_FINISHED, state=final_state), priority=True)
+                log_exception(f"[Copilotkit-Agno][{agent_name}] Agno stream ended unexpectedly for run {run_id}. Signalling RunFinished.")
+                if current_text_message_id is not None: await queue_put(TextMessageEnd(type=RuntimeEventTypes.TEXT_MESSAGE_END, messageId=current_text_message_id))
+                self.update_copilot_agno_state()
+                final_state = self.copilot_agno_state.model_dump()
+                await queue_put(RunFinished(type=RuntimeEventTypes.RUN_FINISHED, state=final_state), priority=True)
 
             # Persist final state if storage is configured
             if self.agno_agent.storage:
                  try:
-                     self.agno_agent.write_to_storage(session_id=thread_id, user_id=user_id)
-                     print(f"[{agent_name}] Final state saved for thread {thread_id}.")
+                    self.agno_agent.write_to_storage(session_id=thread_id, user_id=user_id)
+                    log_debug(f"[Copilotkit-Agno][{agent_name}] Final state saved for thread {thread_id}.")
                  except Exception as save_err:
-                     print(f"[{agent_name}] Error saving final state for thread {thread_id}: {save_err}")
-            print(f"[{agent_name}] Agno agent processing coroutine finished for run {run_id}")
+                    log_exception(f"[Copilotkit-Agno][{agent_name}] Error saving final state for thread {thread_id}: {save_err}")
+            log_debug(f"[Copilotkit-Agno][{agent_name}] Agno agent processing coroutine finished for run {run_id}")
 
 
     # execute, get_state, and dict_repr methods remain unchanged from the previous version
@@ -509,7 +504,7 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
                 # Check if the frontend requested an exit
                 if event.get("name") == RuntimeMetaEventName.EXIT.value:
                     should_exit = True
-                    print(f"[{self.name}] Exit requested via meta event for run {run_id}.")
+                    log_info(f"[Copilotkit-Agno][{self.name}] Exit requested via meta event for run {run_id}.")
                     break
 
         # Prepare the execution context for the runloop
@@ -533,6 +528,7 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
 
         # TODO: May be a right place to define and regiter an Agno tool for client side action handling.
         # How about updating the system prompt to inform Agno for this special tool ?
+        print(f">>>>>>>> ACTIONS >>>>> {actions}")
 
         # copilotkit_run takes the COROUTINE function (_process_agno_stream_and_queue)
         # and returns an ASYNC GENERATOR that yields the processed events.
@@ -544,10 +540,10 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
     async def get_state(self, *, thread_id: str) -> Dict[str, Any]:
         """Retrieves the persisted state of the Agno agent session from storage."""
         agent_name = self.agno_agent.name or self.__class__.__name__
-        print(f"[{agent_name}] get_state called for thread_id: {thread_id}")
+        log_debug(f"[Copilotkit-Agno][{self.name}] get_state() called for thread_id: {thread_id}.")
 
         if not self.agno_agent.storage:
-            print(f"[{agent_name}] No storage configured for agent.")
+            log_debug(f"[Copilotkit-Agno][{self.name}] No storage configured for agent.")
             return {"threadId": thread_id, "threadExists": False, "state": {}, "messages": []}
 
         try:
@@ -555,10 +551,10 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
             agno_session: Optional[AgentSession] = self.agno_agent.storage.read(session_id=thread_id) # type: ignore
 
             if agno_session is None:
-                print(f"[{agent_name}] Session not found in storage for thread_id: {thread_id}")
+                log_debug(f"[Copilotkit-Agno][{self.name}] Session not found in storage for thread_id: {thread_id}")
                 return {"threadId": thread_id, "threadExists": False, "state": {}, "messages": []}
 
-            print(f"[{agent_name}] Session found for thread_id: {thread_id}")
+            log_debug(f"[Copilotkit-Agno][{self.name}] Session found for thread_id: {thread_id}")
 
             # Extract session state and filter it
             agno_session_state = agno_session.session_data.get("session_state", {}) if agno_session.session_data else {}
@@ -576,21 +572,21 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
                         if thread_id in temp_memory.runs:
                             agno_messages = temp_memory.get_messages_for_session(session_id=thread_id)
                         else:
-                             print(f"[{agent_name}] Session ID {thread_id} not found within the 'runs' dict of V2 memory.")
+                            log_debug(f"[Copilotkit-Agno][{self.name}] Session ID {thread_id} not found within the 'runs' dict of V2 memory.")
                     except Exception as e:
-                         print(f"[{agent_name}] Error parsing V2 memory from stored session: {e}")
+                        log_exception(f"[Copilotkit-Agno][{self.name}] Error parsing V2 memory from stored session: {e}")
 
                  # Check for legacy AgentMemory structure (list of messages)
                 elif "messages" in agno_session.memory and isinstance(agno_session.memory["messages"], list):
                      try:
                          agno_messages = [AgnoMessage(**msg_dict) for msg_dict in agno_session.memory["messages"]]
                      except Exception as e:
-                         print(f"[{agent_name}] Error parsing messages from stored session memory: {e}")
+                        log_exception(f"[Copilotkit-Agno][{self.name}] Error parsing messages from stored session memory: {e}")
 
 
             copilotkit_messages = agno_messages_to_copilotkit(agno_messages)
 
-            print(f"[{agent_name}] Returning state for thread_id: {thread_id} with {len(copilotkit_messages)} messages.")
+            log_debug(f"[Copilotkit-Agno][{self.name}] Returning state for thread_id: {thread_id} with {len(copilotkit_messages)} messages.")
             # Return the state in the format expected by CopilotKit frontend
             return {
                 "threadId": thread_id,
@@ -600,10 +596,10 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
             }
 
         except Exception as e:
-             print(f"Error getting Agno agent state for thread {thread_id}: {e}")
-             traceback.print_exc()
-             # Return an error state if something goes wrong
-             return {"threadId": thread_id, "threadExists": False, "state": {"error": f"Failed to retrieve state: {str(e)}"}, "messages": []}
+            log_exception(f"[Copilotkit-Agno][{self.name}] Error getting Agno agent state for thread {thread_id}: {e}")
+            traceback.print_exc()
+            # Return an error state if something goes wrong
+            return {"threadId": thread_id, "threadExists": False, "state": {"error": f"Failed to retrieve state: {str(e)}"}, "messages": []}
 
     def dict_repr(self) -> Dict[str, Any]:
         """Returns a dictionary representation of the adapter, including its type."""
