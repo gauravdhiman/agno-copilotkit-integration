@@ -1,0 +1,1931 @@
+Directory structure:
+└── gauravdhiman-agno-copilotkit-integration/
+    ├── README.md
+    ├── LICENSE
+    ├── .traerules
+    ├── backend/
+    │   ├── main.py
+    │   ├── requirements.txt
+    │   ├── sample_agent.py
+    │   └── copilotkit_integration/
+    │       ├── agno_agent_adapter.py
+    │       ├── agno_workflow_adapter.py
+    │       └── utils.py
+    ├── ui/
+        ├── README.md
+        ├── components.json
+        ├── next.config.mjs
+        ├── package-lock.json
+        ├── package.json
+        ├── pnpm-lock.yaml
+        ├── postcss.config.mjs
+        ├── tailwind.config.ts
+        ├── tsconfig.json
+        ├── .eslintrc.json
+        ├── .gitignore
+        ├── app/
+        │   ├── globals.css
+        │   ├── layout.tsx
+        │   ├── page.tsx
+        │   ├── api/
+        │   │   ├── config.ts
+        │   │   └── copilotkit/
+        │   │       └── route.ts
+        │   ├── components/
+        │   │   ├── Timeline.tsx
+        │   │   └── ui/
+        │   │       └── accordion.tsx
+        │   └── lib/
+        │       └── utils.ts
+        ├── lib/
+        │   └── utils.ts
+        └── public/
+
+================================================
+FILE: README.md
+================================================
+# Purpose of this project
+This is a small project where I try to integrate [Copilotkit](https://www.copilotkit.ai/) project with [Agno](https://www.agno.com/) framework. I want copilitkit to work with Agno, as it works with CrewAI and Langraph, so that developers can enable applications with Agno based ai agents.
+
+# Project Structure
+
+## Backend
+The backend is implemented in Python and consists of the following key components:
+- `backend/copilotkit_integration/`: Contains the core integration logic between Copilotkit and Agno
+  - `agno_agent_adapter.py`: Adapter for Agno agents
+  - `agno_workflow_adapter.py`: Workflow integration with Agno
+  - `utils.py`: Utility functions for the integration
+- `backend/main.py`: Main application entry point
+- `backend/sample_agent.py`: Example implementation of an Agno agent
+
+## Frontend (UI)
+The frontend is built using modern web technologies:
+- Framework: Next.js with TypeScript
+- Styling: Tailwind CSS
+- Key files:
+  - `ui/app/`: Contains the Next.js application pages and components
+  - `ui/public/`: Static assets
+  - `ui/components.json`: UI component configurations
+
+# Installation and Setup
+
+## Backend Setup
+1. Navigate to the backend directory:
+   ```bash
+   cd backend
+   ```
+
+2. Install Python dependencies:
+   ```bash
+   uv pip install -r requirements.txt
+   ```
+
+3. Start the backend server:
+   ```bash
+   uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+   ```
+   The backend will be available at http://localhost:8000
+
+## Frontend Setup
+1. Navigate to the UI directory:
+   ```bash
+   cd ui
+   ```
+
+2. Install frontend dependencies:
+   ```bash
+   pnpm install
+   ```
+
+3. Start the development server:
+   ```bash
+   pnpm run dev
+   ```
+   The frontend will be available at http://localhost:3000
+
+# License
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+# Contributing
+Contributions are welcome! Here's how you can help:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+
+================================================
+FILE: backend/main.py
+================================================
+# main.py
+import os
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from copilotkit import CopilotKitRemoteEndpoint
+from copilotkit.integrations.fastapi import add_fastapi_endpoint
+
+# Import your Agno Agents/Workflows
+from sample_agent import sample_agent
+# from agno_agents.my_agno_workflow import my_workflow_instance
+
+# Import your adapters (adjust path)
+from copilotkit_integration.agno_agent_adapter import AgnoAgentAdapter
+from copilotkit_integration.agno_workflow_adapter import AgnoWorkflowAdapter
+
+# --- Create CopilotKit SDK Endpoint ---
+sdk = CopilotKitRemoteEndpoint(
+    agents=[
+        AgnoAgentAdapter(agno_agent_instance=sample_agent),
+        # AgnoWorkflowAdapter(agno_workflow_instance=my_actual_agno_workflow),
+    ],
+)
+
+# --- Setup FastAPI App ---
+app = FastAPI()
+
+# Configure CORS (same as before)
+origins = [
+    "http://localhost:3000",  # Default Next.js port
+    "http://localhost:4000",
+    "http://127.0.0.1:4000",
+    "http://localhost:8000",
+    "http://localhost:8080",
+    # Add your production frontend URL here if applicable
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=86400,  # Cache preflight requests for 24 hours
+)
+
+add_fastapi_endpoint(
+    fastapi_app=app,
+    sdk=sdk,
+    prefix="/api/copilotkit",
+)
+
+# --- Add other FastAPI routes ---
+@app.get("/")
+def read_root():
+    return {"Hello": "World"}
+
+# --- Run the app ---
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("AGNO_BACKEND_PORT", 8080))
+    print(f"Starting Uvicorn server on 0.0.0.0:{port}")
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True) # Use reload for development
+
+
+================================================
+FILE: backend/requirements.txt
+================================================
+fastapi>=0.100.0
+uvicorn>=0.20.0
+python-dotenv>=1.0.0
+copilotkit
+agno
+openai
+asyncio
+pydantic
+uuid
+groq
+google-genai
+googlesearch-python
+pycountry
+
+# temp
+yfinance
+markitdown
+
+
+================================================
+FILE: backend/sample_agent.py
+================================================
+from logging import debug
+from agno import tools
+from dotenv  import load_dotenv
+load_dotenv()
+
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.models.google import Gemini
+from agno.models.openrouter import OpenRouter
+from agno.models.groq import Groq
+from agno.tools.googlesearch import GoogleSearchTools
+from agno.storage.sqlite import SqliteStorage
+from agno.utils.pprint import pprint_run_response
+from agno.tools import FunctionCall, tool
+from markitdown import MarkItDown
+
+agent_storage = SqliteStorage(
+    table_name="agent_sessions",
+    db_file="tmp/persistent_memory.db",
+)
+
+human_summary_agent = Agent(
+    name="human_summary_agent",
+    description="You are a helpful assistant who can convert the given output of a tool into human readable text in markdown format.",
+    # model=OpenAIChat(id="gpt-4o-mini"),
+    model=Gemini(id="gemini-2.5-flash-preview-04-17"),  # or any other supported model
+    # model=OpenRouter(id="qwen/qwq-32b"),  # or any other supported model
+    # model=Groq(id="llama-3.3-70b-versatile"),  # or any other supported model
+    instructions=[
+        "Do not alter the contents / intent of output.",
+        "Just return the contents into a markdown format. DO NOT ADD / SAY ANYTHING ELSE",
+    ],
+)
+
+GoogleSearchToolKit = GoogleSearchTools()
+
+def google_search(
+    agent: Agent,
+    query: str,
+    max_results: int = 5,
+    language: str = "en"
+):
+    """
+    Use this function to search Google for a specified query.
+
+    Args:
+        query (str): The query to search for.
+        max_results (int, optional): The maximum number of results to return. Default is 5.
+        language (str, optional): The language of the search results. Default is "en".
+
+    Returns:
+        str: A JSON formatted string containing the search results.
+    """
+    json_string = GoogleSearchToolKit.google_search(query, max_results, language)
+    response = human_summary_agent.run(f"Convert the following output into human readable text in markdown format: {json_string}")
+    response = response.content
+    # md = MarkItDown(enable_plugins=False) # Set to True to enable plugins
+    # result = md.convert_response(json_string)
+    # response = result.markdown
+    # print(result.text_content)
+    print(f">>>>>>>>>>>>>>>>>>>> Human Summary Agent Response <<<<<<<<<<< : {response}")
+    if agent.session_state is None:
+        agent.session_state = {}
+    agent.session_state['last_tool_call_response'] = response
+    return json_string
+
+sample_agent = Agent(
+    name="agno_agent",
+    description="You are a helpful assistant who can solve math problems.",
+    # model=OpenAIChat(id="gpt-4o-mini"),
+    model=Gemini(id="gemini-2.5-flash-preview-04-17"),  # or any other supported model
+    # model=OpenRouter(id="qwen/qwq-32b"),  # or any other supported model
+    # model=Groq(id="llama-3.3-70b-versatile"),  # or any other supported model
+    instructions=[
+        "If user input is not sufficent, ask user relevant questions / clarifications",
+        "solve problems step by steps to find the answer. do not rush."
+    ],
+    storage=agent_storage,
+    # add_history_to_messages=True,
+    # num_history_responses=5,
+    tools=[
+        # GoogleSearchTools()
+        google_search
+    ],
+    # reasoning=True,
+    stream_intermediate_steps=True,
+    add_datetime_to_instructions=True,
+    debug_mode=True
+)
+
+# response = sample_agent.run("A chemist has a 10-liter solution that is 30% alcohol. How much pure alcohol must she add to make the solution 50% alcohol?", stream=True)
+# pprint_run_response(response, markdown=True)
+
+# response = sample_agent.print_response("A chemist has a 10-liter solution that is 30% alcohol. How much pure alcohol must she add to make the solution 50% alcohol?", stream=True)
+
+
+
+================================================
+FILE: backend/copilotkit_integration/agno_agent_adapter.py
+================================================
+# copilotkit_integration/agno_agent_adapter.py
+import traceback
+import uuid
+import copy
+from typing import Any, AsyncGenerator, Dict, List, Optional, cast, Set
+
+from copilotkit.agent import Agent as CopilotKitAgentBase
+from copilotkit.action import ActionDict
+from copilotkit.types import Message as CopilotKitMessage, MetaEvent
+from copilotkit.protocol import (
+    RuntimeEventTypes, RuntimeMetaEventName, RuntimeProtocolEvent,
+    TextMessageStart, TextMessageContent, TextMessageEnd,
+    NodeStarted, NodeFinished, RunStarted, RunFinished, RunError,
+)
+from copilotkit.runloop import (
+    copilotkit_run, CopilotKitRunExecution, get_context_execution, queue_put
+)
+
+# Import Agno classes
+from agno.agent.agent import Agent as AgnoAgentInternal
+from agno.models.message import Message as AgnoMessage
+from agno.run.response import RunResponse as AgnoRunResponse, RunEvent as AgnoRunEvent
+from agno.exceptions import RunCancelledException
+from agno.memory import AgentMemory # Legacy Memory
+from agno.memory.v2 import Memory as MemoryV2 # New Memory
+
+# Import Utilities
+from .utils import (
+    copilotkit_messages_to_agno,
+    agno_messages_to_copilotkit,
+    map_agno_chunk_to_copilotkit_protocol_events,
+    filter_agno_state,
+    CopilotKitAgnoState,
+    CopilotKitStateProperties, # Import the properties model
+    TimelineEvent # Import the new timeline event model
+)
+# Import playground operator helper (assuming it's moved or accessible)
+# If this causes import issues, move format_tools to utils.py
+from agno.playground.operator import format_tools
+
+
+class AgnoAgentAdapter(CopilotKitAgentBase):
+    """CopilotKit Adapter for running Agno Agents with streaming using runloop."""
+    def __init__(
+        self,
+        agno_agent_instance: AgnoAgentInternal,
+        user_id_property: str = "userId",
+        name=None,
+        description=None,
+        **kwargs,
+    ):
+        super().__init__(
+            name=name or agno_agent_instance.name or agno_agent_instance.__class__.__name__,
+            description=description or agno_agent_instance.description,
+            **kwargs,
+        )
+        self.agno_agent = agno_agent_instance
+        self.user_id_property = user_id_property
+        # Initialize the state object
+        self.copilot_agno_state = CopilotKitAgnoState(
+            messages=[],
+            copilotkit=CopilotKitStateProperties(actions=[]),
+            event_timeline=[],
+            session_state={}
+        )
+        if self.agno_agent.storage:
+            self.agno_agent.storage.mode = "agent"
+
+    def update_copilot_agno_state(self) -> None:
+        """
+        Refreshes the `self.copilot_agno_state` object with the current state
+        from the underlying `self.agno_agent`. This should be called before
+        emitting state-related events (RunStarted, NodeStarted, NodeFinished, RunFinished).
+        """
+        print(f"[{self.name}] Updating CopilotKitAgnoState...") # Add logging
+
+        # --- Preserve Timeline & Update State ---
+        # Create new state while preserving existing timeline and copilotkit object
+        new_state = CopilotKitAgnoState(
+             messages=[],
+             copilotkit=self.copilot_agno_state.copilotkit,
+             event_timeline=self.copilot_agno_state.event_timeline,
+             session_state=copy.deepcopy(self.agno_agent.session_state or {})
+        ) # Preserve existing timeline and copilotkit
+
+        # --- Messages ---
+        agno_messages: List[AgnoMessage] = []
+        if self.agno_agent.memory:
+            if isinstance(self.agno_agent.memory, MemoryV2):
+                # Agno v2 Memory
+                if self.agno_agent.session_id:
+                    try:
+                        agno_messages = self.agno_agent.memory.get_messages_for_session(self.agno_agent.session_id)
+                    except Exception as e:
+                        print(f"[{self.name}] Error getting V2 memory messages: {e}")
+            elif isinstance(self.agno_agent.memory, AgentMemory):
+                 # Legacy AgentMemory
+                if self.agno_agent.memory.messages:
+                    agno_messages = self.agno_agent.memory.messages
+            else:
+                print(f"[{self.name}] Warning: Unknown Agno memory type: {type(self.agno_agent.memory)}")
+
+        new_state.messages = agno_messages_to_copilotkit(agno_messages)
+        print(f"[{self.name}] State updated with {len(new_state.messages)} messages.") # Add logging
+
+        # --- Filtered Session State & Extra Data ---
+        # Include filtered versions if they contain useful, non-sensitive data for the frontend
+        filtered_session_state = {}
+        if self.agno_agent.session_state:
+            try:
+                filtered_session_state = filter_agno_state(self.agno_agent.session_state)
+                if filtered_session_state:
+                     print(f"[{self.name}] Adding filtered session_state to CopilotKit state: {list(filtered_session_state.keys())}") # Add logging
+                     # Decide where to put this - maybe a custom field?
+                     # For now, let's add it directly to the state object if needed later
+                     # Or potentially merge into the main state dict (less clean)
+                     # Option: Add a dedicated field to CopilotKitAgnoState if this is common
+                     setattr(new_state, 'session_state', filtered_session_state) # Add as a dynamic attribute for now
+            except Exception as e:
+                print(f"[{self.name}] Error filtering Agno session_state: {e}")
+
+        filtered_extra_data = {}
+        if self.agno_agent.extra_data:
+            try:
+                filtered_extra_data = filter_agno_state(self.agno_agent.extra_data)
+                if filtered_extra_data:
+                     print(f"[{self.name}] Adding filtered extra_data to CopilotKit state: {list(filtered_extra_data.keys())}") # Add logging
+                     # Similar decision as session_state
+                     setattr(new_state, 'extra_data', filtered_extra_data) # Add as a dynamic attribute for now
+            except Exception as e:
+                print(f"[{self.name}] Error filtering Agno extra_data: {e}")
+
+
+        # --- Assign the new state ---
+        self.copilot_agno_state = new_state
+        print(f"[{self.name}] CopilotKitAgnoState update complete.") # Add logging
+
+    async def _process_agno_stream_and_queue(self, execution_details: CopilotKitRunExecution) -> None:
+        """
+        Coroutine that executes Agno agent's arun, maps events, and puts them on the queue.
+        Manages TextMessageStart/End events correctly and prevents duplicate tool events.
+
+        Note this method will be run in separate thread using `copilotkit_run()` and whatever
+        events this will emit will be collected from that thread specific queue by `copilotkit_run()`
+        """
+        thread_id = execution_details["thread_id"]
+        run_id = execution_details["run_id"]
+        user_id = execution_details["user_id"] # Extract user_id
+        copilotkit_messages = cast(List[CopilotKitMessage], execution_details["messages"])
+        agent_name = execution_details["agent_name"]
+
+        run_has_finished = False
+        current_text_message_id: Optional[str] = None
+        processed_tool_call_ids: Set[str] = set() # Track processed tool call results
+
+        try:
+            # --- Preparation ---
+            agno_messages = copilotkit_messages_to_agno(copilotkit_messages)
+            last_user_message = agno_messages[-1] if agno_messages and agno_messages[-1].role == "user" else None
+            if last_user_message is None:
+                raise ValueError("No user message found.")
+
+            self.agno_agent.session_id = thread_id
+            self.agno_agent.user_id = user_id # Set user_id on the agent
+            # If session info is persistent, first load it
+            if self.agno_agent.storage:
+                self.agno_agent.load_session()
+
+            # --- Initial State Update and Run Start ---
+            self.update_copilot_agno_state() # Update state BEFORE RunStarted
+            initial_state = self.copilot_agno_state.model_dump()
+            await queue_put(RunStarted(type=RuntimeEventTypes.RUN_STARTED, state=initial_state), priority=True)
+            await queue_put(NodeStarted(type=RuntimeEventTypes.NODE_STARTED, node_name="agno_run", state=initial_state), priority=True)
+
+            # --- Execute Agno Stream ---
+            if not hasattr(self.agno_agent, 'arun'):
+                raise NotImplementedError("Agno agent instance must have an 'arun' method.")
+
+            # Run the Agno agent and collect stream from it.
+            agno_stream = await self.agno_agent.arun(
+                message=last_user_message, stream=True, stream_intermediate_steps=True, messages=agno_messages
+            )
+
+            # Process each chunk in the stream
+            async for agno_chunk in agno_stream:
+                if not isinstance(agno_chunk, AgnoRunResponse):
+                    continue # Skip non-response chunks if any
+
+                # Check for cancellation signal from CopilotKit
+                if get_context_execution().get("should_exit", False):
+                    raise RunCancelledException("Run cancelled by CopilotKit.")
+
+                # --- Map Agno Chunk to CopilotKit Protocol Events ---
+                protocol_events = map_agno_chunk_to_copilotkit_protocol_events(agno_chunk)
+                events_to_queue: List[RuntimeProtocolEvent] = []
+                is_text_chunk = False
+
+                for event in protocol_events:
+                    event_type = event["type"]
+
+                    if event_type == RuntimeEventTypes.TEXT_MESSAGE_CONTENT:
+                        is_text_chunk = True
+                        if current_text_message_id is None:
+                            # Start a new text message block if one isn't active
+                            current_text_message_id = str(uuid.uuid4())
+                            start_event = TextMessageStart(type=RuntimeEventTypes.TEXT_MESSAGE_START, messageId=current_text_message_id, parentMessageId=None) # type: ignore
+                            events_to_queue.append(start_event)
+                        event["messageId"] = current_text_message_id # Use the active message ID
+                        events_to_queue.append(event)
+
+                    elif event_type == RuntimeEventTypes.ACTION_EXECUTION_RESULT:
+                        # If a text message was ongoing, end it before emitting tool result
+                        if current_text_message_id is not None:
+                            end_event = TextMessageEnd(type=RuntimeEventTypes.TEXT_MESSAGE_END, messageId=current_text_message_id) # type: ignore
+                            events_to_queue.append(end_event)
+                            current_text_message_id = None # Reset message ID
+
+                        tool_call_id = event["actionExecutionId"]
+                        if tool_call_id not in processed_tool_call_ids:
+                            # Find corresponding Start/Args/End events generated by the mapper
+                            start_event = next((e for e in protocol_events if e["type"] == RuntimeEventTypes.ACTION_EXECUTION_START and e["actionExecutionId"] == tool_call_id), None)
+                            args_event = next((e for e in protocol_events if e["type"] == RuntimeEventTypes.ACTION_EXECUTION_ARGS and e["actionExecutionId"] == tool_call_id), None)
+                            end_event = next((e for e in protocol_events if e["type"] == RuntimeEventTypes.ACTION_EXECUTION_END and e["actionExecutionId"] == tool_call_id), None)
+
+                            if start_event and args_event and end_event:
+                                events_to_queue.append(start_event)
+                                events_to_queue.append(args_event)
+                                events_to_queue.append(end_event)
+                                events_to_queue.append(event) # Add the Result event itself
+                                processed_tool_call_ids.add(tool_call_id)
+                            else:
+                                print(f"Warning: Could not find full sequence for tool call result {tool_call_id}")
+                    # Ignore standalone Start, Args, End events here; they are added with the Result event
+
+                # If this chunk was NOT text content, and a text message was active, end it.
+                if not is_text_chunk and current_text_message_id is not None:
+                    end_event = TextMessageEnd(type=RuntimeEventTypes.TEXT_MESSAGE_END, messageId=current_text_message_id) # type: ignore
+                    events_to_queue.append(end_event)
+                    current_text_message_id = None
+
+                # Queue the collected protocol events for this chunk
+                if events_to_queue:
+                    await queue_put(*events_to_queue)
+
+                # --- Handle Lifecycle Events based on Agno Event Type ---
+                agno_event_type = agno_chunk.event
+                event_summary = None # Initialize summary for this chunk
+                event_details=""
+
+                # Determine summary based on event type
+                if agno_event_type == AgnoRunEvent.reasoning_started.value:
+                    event_summary = "Agent started reasoning."
+                elif agno_event_type == AgnoRunEvent.reasoning_completed.value:
+                    # Extract reasoning details if available in the chunk's content or metadata
+                    reasoning_details = getattr(agno_chunk, 'thinking', getattr(agno_chunk, 'content', None)) # Example: adjust based on actual chunk structure
+                    if reasoning_details:
+                        event_summary = f"Agent finished reasoning: {reasoning_details}"
+                    else:
+                        event_summary = "Agent finished reasoning."
+                elif agno_event_type == AgnoRunEvent.tool_call_started.value:
+                    tool_name = "unknown tool"
+                    if agno_chunk.tools and len(agno_chunk.tools) > 0:
+                        # Get tool name, make it more readable by replacing underscores with spaces
+                        tool_name = agno_chunk.tools[0].get('tool_name', tool_name).replace('_', ' ')
+                    event_summary = f"Agent started calling tool: {tool_name}"
+                elif agno_event_type == AgnoRunEvent.tool_call_completed.value:
+                    tool_name = "unknown tool"
+                    tool_result = ""
+                    if self.agno_agent.session_state and 'last_tool_call_response' in self.agno_agent.session_state and self.agno_agent.session_state['last_tool_call_response']:
+                        tool_result = str(self.agno_agent.session_state['last_tool_call_response'])
+                    if agno_chunk.tools and len(agno_chunk.tools) > 0:
+                        tool_name = agno_chunk.tools[0].get('tool_name', tool_name).replace('_', ' ')
+                    event_summary = f"Agent finished calling tool: {tool_name}"
+                    event_details=f"{tool_result}"
+                elif agno_event_type == AgnoRunEvent.updating_memory.value:
+                    event_summary = "Agent is updating its memory."
+                elif agno_event_type == AgnoRunEvent.run_error.value:
+                    error_content = str(getattr(agno_chunk, 'content', 'Unknown error'))
+                    event_summary = f"Agent encountered an error."
+                    event_details=f"Error Details: {error_content}"
+
+                # Update state and emit lifecycle event IF a summary was generated
+                if event_summary:
+                    self.update_copilot_agno_state() # Refresh base state
+                    # Append the new event to the timeline
+                    self.copilot_agno_state.event_timeline.append(TimelineEvent(
+                        event_type=agno_event_type, # Use .value for enum
+                        event_summary=event_summary,
+                        event_details=event_details
+                    ))
+                    current_state = self.copilot_agno_state.model_dump() # Get state WITH timeline
+
+                    # Emit corresponding CopilotKit lifecycle events
+                    if agno_event_type == AgnoRunEvent.reasoning_started.value:
+                        await queue_put(NodeStarted(type=RuntimeEventTypes.NODE_STARTED, node_name="reasoning_started", state=current_state))
+                    elif agno_event_type == AgnoRunEvent.reasoning_completed.value:
+                        await queue_put(NodeFinished(type=RuntimeEventTypes.NODE_FINISHED, node_name="reasoning_ended", state=current_state))
+                    elif agno_event_type == AgnoRunEvent.tool_call_started.value:
+                        await queue_put(NodeStarted(type=RuntimeEventTypes.NODE_STARTED, node_name="tool_call_started", state=current_state))
+                    elif agno_event_type == AgnoRunEvent.tool_call_completed.value:
+                        await queue_put(NodeFinished(type=RuntimeEventTypes.NODE_FINISHED, node_name="tool_call_ended", state=current_state))
+                    elif agno_event_type == AgnoRunEvent.updating_memory.value:
+                        await queue_put(NodeStarted(type=RuntimeEventTypes.NODE_STARTED, node_name="memory_update", state=current_state))
+                        await queue_put(NodeFinished(type=RuntimeEventTypes.NODE_FINISHED, node_name="memory_update", state=current_state))
+                    elif agno_event_type == AgnoRunEvent.run_error.value:
+                        await queue_put(RunError(type=RuntimeEventTypes.RUN_ERROR, error=str(agno_chunk.content)), priority=True)
+                        # Also emit NodeFinished for the error state if needed, or rely on RunError/RunFinished
+                        # await queue_put(NodeFinished(type=RuntimeEventTypes.NODE_FINISHED, node_name="error_state", state=current_state))
+
+                    # Reset summary after emitting the event
+                    # self.copilot_agno_state.event_summary = None # Removed - field doesn't exist
+
+                # Handle RunError specifically for RunFinished signal
+                if agno_event_type == AgnoRunEvent.run_error.value:
+                    await queue_put(RunFinished(type=RuntimeEventTypes.RUN_FINISHED, state=current_state), priority=True)
+                    run_has_finished = True # Mark as finished on error too
+                    break # Stop processing stream on error
+
+
+            # --- After Loop ---
+            # Ensure any final open text message is closed
+            if current_text_message_id is not None:
+                await queue_put(TextMessageEnd(type=RuntimeEventTypes.TEXT_MESSAGE_END, messageId=current_text_message_id))
+
+            # Update and emit final state only if run didn't end with an error
+            if not run_has_finished:
+                self.update_copilot_agno_state()
+                final_state = self.copilot_agno_state.model_dump()
+                await queue_put(NodeFinished(type=RuntimeEventTypes.NODE_FINISHED, node_name="agno_run", state=final_state))
+                await queue_put(RunFinished(type=RuntimeEventTypes.RUN_FINISHED, state=final_state), priority=True)
+                run_has_finished = True
+
+        # --- Exception Handling ---
+        except RunCancelledException:
+            print(f"[{agent_name}] Run {run_id} cancelled.")
+            if current_text_message_id is not None: await queue_put(TextMessageEnd(type=RuntimeEventTypes.TEXT_MESSAGE_END, messageId=current_text_message_id))
+            # Update state before final RunFinished
+            self.update_copilot_agno_state()
+            final_state = self.copilot_agno_state.model_dump()
+            await queue_put(NodeFinished(type=RuntimeEventTypes.NODE_FINISHED, node_name="agno_run", state=final_state))
+            await queue_put(RunFinished(type=RuntimeEventTypes.RUN_FINISHED, state=final_state), priority=True)
+            run_has_finished = True
+        except Exception as e:
+            print(f"[{agent_name}] Error during Agno agent streaming: {e}")
+            traceback.print_exc()
+            if current_text_message_id is not None: await queue_put(TextMessageEnd(type=RuntimeEventTypes.TEXT_MESSAGE_END, messageId=current_text_message_id))
+            # Update state before RunError/RunFinished
+            self.update_copilot_agno_state()
+            final_state = self.copilot_agno_state.model_dump()
+            await queue_put(RunError(type=RuntimeEventTypes.RUN_ERROR, error=str(e)), priority=True) # Send error content
+            # Ensure RunFinished is always sent, even after an error
+            await queue_put(RunFinished(type=RuntimeEventTypes.RUN_FINISHED, state=final_state), priority=True)
+            run_has_finished = True
+
+        # --- Finalization ---
+        finally:
+            # This block ensures RunFinished is sent if the stream ends unexpectedly without error or cancellation
+            if not run_has_finished:
+                 print(f"[{agent_name}] Agno stream ended unexpectedly for run {run_id}. Signalling RunFinished.")
+                 if current_text_message_id is not None: await queue_put(TextMessageEnd(type=RuntimeEventTypes.TEXT_MESSAGE_END, messageId=current_text_message_id))
+                 self.update_copilot_agno_state()
+                 final_state = self.copilot_agno_state.model_dump()
+                 await queue_put(RunFinished(type=RuntimeEventTypes.RUN_FINISHED, state=final_state), priority=True)
+
+            # Persist final state if storage is configured
+            if self.agno_agent.storage:
+                 try:
+                     self.agno_agent.write_to_storage(session_id=thread_id, user_id=user_id)
+                     print(f"[{agent_name}] Final state saved for thread {thread_id}.")
+                 except Exception as save_err:
+                     print(f"[{agent_name}] Error saving final state for thread {thread_id}: {save_err}")
+            print(f"[{agent_name}] Agno agent processing coroutine finished for run {run_id}")
+
+    # execute, get_state, and dict_repr methods remain unchanged from the previous version
+    def execute(
+        self,
+        *,
+        state: dict, # CopilotKit state (passed by the runloop)
+        messages: List[CopilotKitMessage],
+        thread_id: str,
+        actions: Optional[List[ActionDict]] = None, # CopilotKit frontend actions (if any)
+        meta_events: Optional[List[MetaEvent]] = None,
+        properties: Optional[Dict[str, Any]] = None, # Properties from <CopilotKit properties={...}>
+        **kwargs,
+    ) -> AsyncGenerator[str, None]:
+        """Executes the Agno agent using CopilotKit runloop."""
+        run_id = str(uuid.uuid4())
+        # Extract user ID from properties passed from the frontend, default if not found
+        user_id = (properties or {}).get(self.user_id_property, f"user_{thread_id}")
+
+        should_exit = False
+        if meta_events:
+            for event in meta_events:
+                # Check if the frontend requested an exit
+                if event.get("name") == RuntimeMetaEventName.EXIT.value:
+                    should_exit = True
+                    print(f"[{self.name}] Exit requested via meta event for run {run_id}.")
+                    break
+
+        # Prepare the execution context for the runloop
+        execution_details = CopilotKitRunExecution(
+            thread_id=thread_id,
+            agent_name=self.name,
+            run_id=run_id,
+            should_exit=should_exit, # Pass the exit signal
+            node_name="start", # Initial node name
+            is_finished=False,
+            predict_state_configuration={}, # Agno doesn't use this yet
+            predicted_state={},
+            argument_buffer="",
+            current_tool_call=None,
+            state=state, # Initial CopilotKit state from the runloop
+            # Pass necessary context to the processing coroutine
+            messages=messages,
+            actions=actions or [],
+            user_id=user_id, # Pass the determined user ID
+        )
+
+        # copilotkit_run takes the COROUTINE function (_process_agno_stream_and_queue)
+        # and returns an ASYNC GENERATOR that yields the processed events.
+        return copilotkit_run(
+            fn=lambda: self._process_agno_stream_and_queue(execution_details),
+            execution=execution_details
+        )
+
+    async def get_state(self, *, thread_id: str) -> Dict[str, Any]:
+        """Retrieves the persisted state of the Agno agent session from storage."""
+        agent_name = self.agno_agent.name or self.__class__.__name__
+        print(f"[{agent_name}] get_state called for thread_id: {thread_id}")
+
+        if not self.agno_agent.storage:
+            print(f"[{agent_name}] No storage configured for agent.")
+            return {"threadId": thread_id, "threadExists": False, "state": {}, "messages": []}
+
+        try:
+            # Attempt to read the session using the storage mechanism
+            agno_session: Optional[AgentSession] = self.agno_agent.storage.read(session_id=thread_id) # type: ignore
+
+            if agno_session is None:
+                print(f"[{agent_name}] Session not found in storage for thread_id: {thread_id}")
+                return {"threadId": thread_id, "threadExists": False, "state": {}, "messages": []}
+
+            print(f"[{agent_name}] Session found for thread_id: {thread_id}")
+
+            # Extract session state and filter it
+            agno_session_state = agno_session.session_data.get("session_state", {}) if agno_session.session_data else {}
+            filtered_state = filter_agno_state(agno_session_state)
+
+            # Extract and convert messages
+            agno_messages: List[AgnoMessage] = []
+            if agno_session.memory:
+                 # Check for V2 Memory structure (dict of session IDs to lists of runs)
+                if "runs" in agno_session.memory and isinstance(agno_session.memory["runs"], dict):
+                    try:
+                        # Re-hydrate the V2 Memory object to use its methods
+                        temp_memory = MemoryV2(**agno_session.memory)
+                        # Check if the specific session exists in the runs dict
+                        if thread_id in temp_memory.runs:
+                            agno_messages = temp_memory.get_messages_for_session(session_id=thread_id)
+                        else:
+                             print(f"[{agent_name}] Session ID {thread_id} not found within the 'runs' dict of V2 memory.")
+                    except Exception as e:
+                         print(f"[{agent_name}] Error parsing V2 memory from stored session: {e}")
+
+                 # Check for legacy AgentMemory structure (list of messages)
+                elif "messages" in agno_session.memory and isinstance(agno_session.memory["messages"], list):
+                     try:
+                         agno_messages = [AgnoMessage(**msg_dict) for msg_dict in agno_session.memory["messages"]]
+                     except Exception as e:
+                         print(f"[{agent_name}] Error parsing messages from stored session memory: {e}")
+
+
+            copilotkit_messages = agno_messages_to_copilotkit(agno_messages)
+
+            print(f"[{agent_name}] Returning state for thread_id: {thread_id} with {len(copilotkit_messages)} messages.")
+            # Return the state in the format expected by CopilotKit frontend
+            return {
+                "threadId": thread_id,
+                "threadExists": True,
+                "state": filtered_state, # Send the filtered state
+                "messages": copilotkit_messages # Send the converted messages
+            }
+
+        except Exception as e:
+             print(f"Error getting Agno agent state for thread {thread_id}: {e}")
+             traceback.print_exc()
+             # Return an error state if something goes wrong
+             return {"threadId": thread_id, "threadExists": False, "state": {"error": f"Failed to retrieve state: {str(e)}"}, "messages": []}
+
+    def dict_repr(self) -> Dict[str, Any]:
+        """Returns a dictionary representation of the adapter, including its type."""
+        base = super().dict_repr()
+        base['type'] = 'agno' # Indicate the adapter type
+        return base
+
+
+================================================
+FILE: backend/copilotkit_integration/agno_workflow_adapter.py
+================================================
+# copilotkit_integration/agno_workflow_adapter.py
+import asyncio
+import json
+import traceback
+import uuid
+from typing import Any, AsyncGenerator, Generator, Dict, List, Optional, Set
+
+from copilotkit.agent import Agent as CopilotKitAgentBase
+from copilotkit.action import ActionDict
+from copilotkit.types import Message as CopilotKitMessage, MetaEvent
+from copilotkit.protocol import RuntimeMetaEventName, RuntimeEventTypes, RuntimeProtocolEvent, RunStarted, NodeStarted, NodeFinished, RunFinished, RunError, TextMessageEnd
+# Import LIFECYCLE events
+from copilotkit.runloop import (
+    copilotkit_run, CopilotKitRunExecution, get_context_execution, queue_put
+)
+
+# Import Agno classes
+from agno.workflow.workflow import Workflow as AgnoWorkflowInternal
+from agno.run.response import RunResponse as AgnoRunResponse, RunEvent as AgnoRunEvent
+from agno.exceptions import RunCancelledException
+from agno.memory.workflow import WorkflowMemory
+# from agno.memory.v2 import Memory as MemoryV2 # If workflow uses V2 memory
+from agno.storage.session.workflow import WorkflowSession # Import specific session type
+
+
+from .utils import (
+    map_agno_chunk_to_copilotkit_protocol_events,
+    filter_agno_state,
+    # Message conversion likely less relevant here
+)
+
+class AgnoWorkflowAdapter(CopilotKitAgentBase):
+    """CopilotKit Adapter for running Agno Workflows with streaming using runloop."""
+    def __init__(
+        self,
+        agno_workflow_instance: AgnoWorkflowInternal,
+        user_id_property: str = "userId",
+        input_property: str = "input",
+        **kwargs,
+    ):
+        super().__init__(
+            name=agno_workflow_instance.name or agno_workflow_instance.__class__.__name__,
+            description=agno_workflow_instance.description,
+            **kwargs,
+        )
+        self.agno_workflow = agno_workflow_instance
+        self.user_id_property = user_id_property
+        self.input_property = input_property
+        if self.agno_workflow.storage:
+            self.agno_workflow.storage.mode = "workflow"
+
+    async def _process_agno_stream_and_queue(self, execution_details: CopilotKitRunExecution) -> None:
+        """
+        Coroutine that executes Agno workflow's run, maps events, and puts them on the queue.
+        Manages TextMessageStart/End events correctly and prevents duplicate tool events.
+        """
+        thread_id = execution_details["thread_id"]
+        run_id = execution_details["run_id"]
+        user_id = execution_details["user_id"]
+        workflow_input = execution_details.get(self.input_property, {})
+        agent_name = execution_details["agent_name"] # Use agent_name from execution details
+
+        run_has_finished = False
+        current_text_message_id: Optional[str] = None
+        processed_tool_call_ids: Set[str] = set() # Track processed tool calls
+
+        try:
+            # 1. Prepare Agno inputs & state
+            self.agno_workflow.session_id = thread_id
+            self.agno_workflow.user_id = user_id
+            if self.agno_workflow.storage:
+                self.agno_workflow.read_from_storage() # Load state
+
+            current_agno_state = self.agno_workflow.session_state or {}
+
+            # 2. Signal Run Start
+            await queue_put(RunStarted(type=RuntimeEventTypes.RUN_STARTED, state=current_agno_state), priority=True)
+            await queue_put(NodeStarted(type=RuntimeEventTypes.NODE_STARTED, node_name="agno_workflow_run", state=current_agno_state), priority=True)
+
+            # 3. Execute Agno workflow stream
+            if not hasattr(self.agno_workflow, 'run'):
+                 raise NotImplementedError(f"Agno workflow {self.agno_workflow.name} does not have a run method.")
+
+            # Assume run returns async iterator when stream=True
+            agno_stream = self.agno_workflow.run(stream=True, stream_intermediate_steps=True, **workflow_input)
+
+            # Handle both sync and async iterators from workflow.run
+            if isinstance(agno_stream, AsyncGenerator):
+                stream_iterator = agno_stream
+            elif isinstance(agno_stream, (Generator, list, tuple)): # Handle sync iterators/lists
+                # Wrap sync iterator in an async one if needed, or process directly if simple list
+                async def async_wrapper(sync_iter):
+                    for item in sync_iter:
+                        yield item
+                        await asyncio.sleep(0) # Yield control briefly
+                stream_iterator = async_wrapper(agno_stream)
+            else:
+                 # If run returns a single value, wrap it
+                 async def single_item_wrapper(item):
+                      yield item
+                 stream_iterator = single_item_wrapper(agno_stream)
+
+
+            async for agno_chunk in stream_iterator:
+                if not isinstance(agno_chunk, AgnoRunResponse):
+                    print(f"Warning: Received unexpected chunk type from Agno Workflow: {type(agno_chunk)}")
+                    continue
+
+                if get_context_execution().get("should_exit", False):
+                    print(f"Cancellation requested for workflow run {run_id}")
+                    raise RunCancelledException("Workflow execution cancelled by frontend.")
+
+                current_agno_state = self.agno_workflow.session_state or {}
+                agno_event_type = agno_chunk.event
+
+                # --- Check if we need to end the current text message ---
+                is_text_content_event = agno_chunk.content and agno_event_type == AgnoRunEvent.run_response.value
+                is_non_text_protocol_event = agno_chunk.tools is not None
+                should_end_text = (not is_text_content_event or is_non_text_protocol_event) and current_text_message_id is not None
+
+                if should_end_text:
+                    await queue_put(TextMessageEnd(type=RuntimeEventTypes.TEXT_MESSAGE_END, messageId=current_text_message_id)) # type: ignore
+                    current_text_message_id = None
+
+                # --- Map chunk to PROTOCOL events ---
+                protocol_events = map_agno_chunk_to_copilotkit_protocol_events(agno_chunk)
+                events_to_queue: List[RuntimeProtocolEvent] = []
+
+                for event in protocol_events:
+                     event_type = event["type"]
+                     if event_type == RuntimeEventTypes.TEXT_MESSAGE_CONTENT:
+                         if current_text_message_id is None:
+                             current_text_message_id = str(uuid.uuid4())
+                             events_to_queue.append(TextMessageStart(type=RuntimeEventTypes.TEXT_MESSAGE_START, messageId=current_text_message_id, parentMessageId=None)) # type: ignore
+                         event["messageId"] = current_text_message_id
+                         events_to_queue.append(event)
+                     elif event_type == RuntimeEventTypes.ACTION_EXECUTION_RESULT:
+                         # End text if ongoing before tool result
+                         if current_text_message_id is not None:
+                            events_to_queue.append(TextMessageEnd(type=RuntimeEventTypes.TEXT_MESSAGE_END, messageId=current_text_message_id))
+                            current_text_message_id = None
+                         # Only add tool sequence if result ID not seen
+                         tool_call_id = event["actionExecutionId"]
+                         if tool_call_id not in processed_tool_call_ids:
+                             tool_info = next((t for t in (agno_chunk.tools or []) if t.get("tool_call_id") == tool_call_id), None)
+                             if tool_info:
+                                 tool_name = tool_info.get("tool_name", "unknown_tool")
+                                 tool_args = tool_info.get("tool_args", {})
+                                 events_to_queue.append(ActionExecutionStart(type=RuntimeEventTypes.ACTION_EXECUTION_START, actionExecutionId=tool_call_id, actionName=tool_name, parentMessageId=None)) # type: ignore
+                                 events_to_queue.append(ActionExecutionArgs(type=RuntimeEventTypes.ACTION_EXECUTION_ARGS, actionExecutionId=tool_call_id, args=json.dumps(tool_args))) # type: ignore
+                                 events_to_queue.append(ActionExecutionEnd(type=RuntimeEventTypes.ACTION_EXECUTION_END, actionExecutionId=tool_call_id)) # type: ignore
+                                 events_to_queue.append(event)
+                                 processed_tool_call_ids.add(tool_call_id)
+
+                # Queue the collected protocol events
+                if events_to_queue:
+                    await queue_put(*events_to_queue)
+
+                # --- Map chunk event to LIFECYCLE events ---
+                significant_lifecycle_event = agno_event_type not in [AgnoRunEvent.run_response.value] # Example
+                if significant_lifecycle_event and current_text_message_id is not None:
+                    await queue_put(TextMessageEnd(type=RuntimeEventTypes.TEXT_MESSAGE_END, messageId=current_text_message_id))
+                    current_text_message_id = None
+
+                node_name = "workflow_step"
+                if agno_event_type == AgnoRunEvent.workflow_started.value: # Use workflow specific events if they exist
+                    await queue_put(NodeStarted(type=RuntimeEventTypes.NODE_STARTED, node_name=node_name, state=current_agno_state))
+                elif agno_event_type == AgnoRunEvent.workflow_completed.value: # Use workflow specific events if they exist
+                    await queue_put(NodeFinished(type=RuntimeEventTypes.NODE_FINISHED, node_name=node_name, state=current_agno_state))
+                # Map other Agno events to NodeStarted/Finished as needed
+                elif agno_event_type == AgnoRunEvent.run_error.value:
+                    raise Exception(str(agno_chunk.content))
+
+            # --- After Loop ---
+            if current_text_message_id is not None: await queue_put(TextMessageEnd(type=RuntimeEventTypes.TEXT_MESSAGE_END, messageId=current_text_message_id))
+            current_agno_state = self.agno_workflow.session_state or {}
+            await queue_put(NodeFinished(type=RuntimeEventTypes.NODE_FINISHED, node_name="agno_workflow_run", state=current_agno_state))
+            await queue_put(RunFinished(type=RuntimeEventTypes.RUN_FINISHED, state=current_agno_state), priority=True)
+            run_has_finished = True
+
+        except RunCancelledException:
+             # (Cancellation handling remains the same)
+             print(f"Workflow Run {run_id} cancelled.")
+             if current_text_message_id is not None: await queue_put(TextMessageEnd(type=RuntimeEventTypes.TEXT_MESSAGE_END, messageId=current_text_message_id))
+             current_agno_state = self.agno_workflow.session_state or {}
+             await queue_put(NodeFinished(type=RuntimeEventTypes.NODE_FINISHED, node_name="agno_workflow_run", state=current_agno_state))
+             await queue_put(RunFinished(type=RuntimeEventTypes.RUN_FINISHED, state=current_agno_state), priority=True)
+             run_has_finished = True
+        except Exception as e:
+             # (Error handling remains the same)
+             print(f"Error during Agno workflow streaming: {e}")
+             traceback.print_exc()
+             if current_text_message_id is not None: await queue_put(TextMessageEnd(type=RuntimeEventTypes.TEXT_MESSAGE_END, messageId=current_text_message_id))
+             current_agno_state = self.agno_workflow.session_state or {}
+             await queue_put(RunError(type=RuntimeEventTypes.RUN_ERROR, error=e), priority=True)
+             run_has_finished = True
+        finally:
+             # (Final completion signal and state saving remains the same)
+             if not run_has_finished:
+                  print(f"Agno workflow stream ended unexpectedly for run {run_id}. Signalling RunFinished.")
+                  if current_text_message_id is not None: await queue_put(TextMessageEnd(type=RuntimeEventTypes.TEXT_MESSAGE_END, messageId=current_text_message_id))
+                  current_agno_state = self.agno_workflow.session_state or {}
+                  await queue_put(RunFinished(type=RuntimeEventTypes.RUN_FINISHED, state=current_agno_state), priority=True)
+
+             if self.agno_workflow.storage:
+                  try:
+                      self.agno_workflow.write_to_storage()
+                      print(f"[{agent_name}] Final workflow state saved for thread {thread_id}.")
+                  except Exception as save_err:
+                      print(f"[{agent_name}] Error saving final workflow state for thread {thread_id}: {save_err}")
+             print(f"Agno workflow processing coroutine finished for run {run_id}")
+
+    def execute(
+        self,
+        *,
+        state: dict,
+        messages: List[CopilotKitMessage],
+        thread_id: str,
+        actions: Optional[List[ActionDict]] = None,
+        meta_events: Optional[List[MetaEvent]] = None,
+        properties: Optional[Dict[str, Any]] = None,
+        **kwargs,
+    ) -> AsyncGenerator[str, None]:
+        """Executes the Agno workflow using CopilotKit runloop."""
+        run_id = str(uuid.uuid4())
+        user_id = (properties or {}).get(self.user_id_property, "default_user")
+
+        should_interrupt = False
+        if meta_events:
+            for event in meta_events:
+                if event.get("name") == RuntimeMetaEventName.EXIT.value:
+                    should_interrupt = True
+                    break
+
+        workflow_input = (properties or {}).get(self.input_property, kwargs.get(self.input_property, {}))
+
+        execution_details = CopilotKitRunExecution(
+            thread_id=thread_id,
+            agent_name=self.name,
+            run_id=run_id,
+            should_exit=should_interrupt,
+            node_name="start",
+            is_finished=False,
+            predict_state_configuration={},
+            predicted_state={},
+            argument_buffer="",
+            current_tool_call=None,
+            state=state,
+            # Pass workflow-specific details
+            workflow_input=workflow_input, # Pass structured input
+            user_id=user_id,
+            messages=messages, # Pass for context if needed
+            actions=actions or [], # Pass for context if needed
+        )
+
+        return copilotkit_run(
+            fn=lambda: self._process_agno_stream_and_queue(execution_details),
+            execution=execution_details
+        )
+
+    # get_state and dict_repr remain the same as the corrected version previously provided
+    async def get_state(self, *, thread_id: str) -> Dict[str, Any]:
+        """Retrieves the persisted state of the Agno workflow session from storage."""
+        workflow_name = self.agno_workflow.name or self.__class__.__name__
+        print(f"[{workflow_name}] get_state called for thread_id: {thread_id}")
+
+        if not self.agno_workflow.storage:
+             print(f"[{workflow_name}] No storage configured for workflow.")
+             return {"threadId": thread_id, "threadExists": False, "state": {}, "messages": []}
+
+        try:
+            agno_session: Optional[WorkflowSession] = self.agno_workflow.storage.read(session_id=thread_id) # type: ignore
+            if agno_session is None:
+                print(f"[{workflow_name}] Session not found in storage for thread_id: {thread_id}")
+                return {"threadId": thread_id, "threadExists": False, "state": {}, "messages": []}
+
+            print(f"[{workflow_name}] Session found for thread_id: {thread_id}")
+
+            agno_state = agno_session.session_data.get("session_state", {}) if agno_session.session_data else {}
+            filtered_state = filter_agno_state(agno_state)
+
+            copilotkit_messages = []
+            if agno_session.memory:
+                # Check if the memory structure corresponds to Memory V2 or legacy WorkflowMemory
+                # ******** Enable this `if` block and re-check once V2 Memory is available in Agno
+                #  if "runs" in agno_session.memory and isinstance(self.agno_workflow.memory, MemoryV2):
+                #       # V2 Memory might store runs differently, adapt if needed
+                #       print(f"[{workflow_name}] Workflow using MemoryV2, message extraction from runs not implemented yet.")
+                #       pass
+                 # Logic for legacy WorkflowMemory
+                 if "runs" in agno_session.memory and isinstance(agno_session.memory["runs"], list):
+                      # Convert workflow runs to messages if desired (conceptual)
+                      # agno_messages = []
+                      # for run in agno_session.memory["runs"]:
+                      #     if run.get("input"): agno_messages.append(AgnoMessage(role="user", content=str(run["input"])))
+                      #     if run.get("response") and run["response"].get("content"): agno_messages.append(AgnoMessage(role="assistant", content=str(run["response"]["content"])))
+                      # copilotkit_messages = agno_messages_to_copilotkit(agno_messages)
+                      pass # Keep empty for now
+
+            print(f"[{workflow_name}] Returning state for thread_id: {thread_id} with {len(copilotkit_messages)} messages.")
+            return {"threadId": thread_id, "threadExists": True, "state": filtered_state, "messages": copilotkit_messages }
+        except Exception as e:
+             print(f"Error getting Agno workflow state for thread {thread_id}: {e}")
+             traceback.print_exc()
+             return {"threadId": thread_id, "threadExists": False, "state": {"error": f"Failed to retrieve state: {str(e)}"}, "messages": []}
+
+
+    def dict_repr(self) -> Dict[str, Any]:
+        base = super().dict_repr()
+        base['type'] = 'agno_workflow'
+        # Only add parameters if they exist and are not None
+        if hasattr(self.agno_workflow, '_run_parameters') and self.agno_workflow._run_parameters:
+            base['parameters'] = self.agno_workflow._run_parameters
+        return base
+
+
+================================================
+FILE: backend/copilotkit_integration/utils.py
+================================================
+# copilotkit_integration/utils.py
+import json
+import uuid
+from typing import Any, Dict, List, Optional, Sequence, cast
+from pydantic import BaseModel, Field
+
+from copilotkit.types import Message as CopilotKitMessage
+from copilotkit.protocol import (
+    RuntimeProtocolEvent, # Type alias for event dictionaries
+    RuntimeEventTypes,    # Enum for event types
+    TextMessageStart,
+    TextMessageContent,
+    TextMessageEnd,
+    ActionExecutionStart,
+    ActionExecutionArgs,
+    ActionExecutionEnd,
+    ActionExecutionResult,
+)
+
+# Import Agno classes
+from agno.models.message import Message as AgnoMessage
+from agno.run.response import (
+    RunResponse as AgnoRunResponse, 
+    RunEvent as AgnoRunEvent
+)
+
+class TimelineEvent(BaseModel):
+    """Represents a single event in the lifecycle timeline."""
+    event_type: str
+    event_summary: str
+    event_details: str
+
+class CopilotKitStateProperties(BaseModel):
+    """CopilotKit properties"""
+    actions: List[Any] = Field(default_factory=list)
+
+class CopilotKitAgnoState(BaseModel):
+    """CopilotKit state"""
+    messages: List[Any] = Field(default_factory=list)
+    copilotkit: CopilotKitStateProperties = Field(default_factory=CopilotKitStateProperties)
+    event_timeline: List[TimelineEvent] = Field(default_factory=list) # Timeline of lifecycle events
+    session_state: Dict = Field(default_factory=dict)
+
+
+# --- Message Conversion ---
+# (copilotkit_messages_to_agno and agno_messages_to_copilotkit remain the same as corrected before)
+# ...
+def copilotkit_messages_to_agno(copilotkit_messages: List[CopilotKitMessage]) -> List[AgnoMessage]:
+    """Converts CopilotKit messages to Agno messages."""
+    agno_messages = []
+    for msg in copilotkit_messages:
+        role = msg.get("role", "user")
+        content = msg.get("content", "")
+        msg_id = msg.get("id", str(uuid.uuid4()))
+        tool_calls = None
+        tool_call_id = None
+        msg_type = msg.get("type")
+        if msg_type == "ActionExecutionMessage":
+            role = "assistant" # Tool calls originate from assistant
+            tool_calls = [{
+                "id": msg_id, # Use message ID as tool call ID
+                "type": "function",
+                "function": {
+                    "name": msg.get("name", "unknown_function"),
+                    "arguments": json.dumps(msg.get("arguments", {})) # Ensure arguments are stringified JSON
+                }
+            }]
+            content = None # Tool call messages might not have text content
+        elif msg_type == "ResultMessage":
+            role = "tool"
+            tool_call_id = msg.get("actionExecutionId")
+            content = msg.get("result") # Tool result content
+
+        try:
+            agno_msg = AgnoMessage(
+                role=role,
+                content=content,
+                id=msg_id,
+                tool_calls=tool_calls,
+                tool_call_id=tool_call_id,
+                name=msg.get("name") if msg_type != "ResultMessage" else msg.get("actionName")
+            )
+            agno_messages.append(agno_msg)
+        except Exception as e:
+             print(f"Warning: Failed to create AgnoMessage from CopilotKit message: {msg}. Error: {e}")
+
+    return agno_messages
+
+def agno_messages_to_copilotkit(agno_messages: List[AgnoMessage]) -> List[CopilotKitMessage]:
+    """Converts Agno messages back to CopilotKit message format (for get_state)."""
+    copilotkit_messages = []
+    for msg in agno_messages:
+         copilotkit_msg: Dict[str, Any] = {
+             "id": getattr(msg, 'id', str(uuid.uuid4())),
+             "role": msg.role,
+             "content": msg.get_content_string(),
+             "createdAt": getattr(msg, 'created_at', None)
+         }
+
+         if msg.role == "tool" and msg.tool_call_id:
+             copilotkit_msg["type"] = "ResultMessage"
+             copilotkit_msg["actionExecutionId"] = msg.tool_call_id
+             copilotkit_msg["actionName"] = msg.tool_name or "unknown_tool"
+             copilotkit_msg["result"] = copilotkit_msg.pop("content") # Use 'result' field
+             copilotkit_msg.pop("role")
+         elif msg.role == "assistant" and msg.tool_calls:
+             pass # Skip tool call request messages for now in get_state
+         elif msg.role in ["user", "assistant", "system"]:
+              copilotkit_msg["type"] = "TextMessage"
+              if "content" in copilotkit_msg and not isinstance(copilotkit_msg["content"], str):
+                  copilotkit_msg["content"] = str(copilotkit_msg["content"])
+         else:
+              print(f"Warning: Skipping Agno message with unmappable role: {msg.role}")
+              continue
+
+         copilotkit_messages.append(cast(CopilotKitMessage, copilotkit_msg))
+    return copilotkit_messages
+
+# --- Event Mapping ---
+
+def map_agno_chunk_to_copilotkit_protocol_events(
+    chunk: AgnoRunResponse,
+) -> List[RuntimeProtocolEvent]:
+    """
+    Maps an AgnoRunResponse chunk to CopilotKit PROTOCOL events (TextMessageContent, ActionExecution*).
+    It translates the *content* of this specific chunk. It does NOT handle TextMessageStart/End.
+    """
+    events: List[RuntimeProtocolEvent] = []
+    event_type = chunk.event
+
+    # 1. Handle Text Content (only if it's the main event type)
+    if chunk.content and event_type == AgnoRunEvent.run_response.value:
+        # Pass a placeholder ID, the caller will manage the actual message ID state
+        events.append(TextMessageContent(type=RuntimeEventTypes.TEXT_MESSAGE_CONTENT, messageId="PLACEHOLDER_ID", content=str(chunk.content)))
+
+    # 2. Handle Tool Call Results (Assuming tools appear when the call is *complete*)
+    is_tool_completion_event = event_type == AgnoRunEvent.tool_call_completed.value
+    is_likely_tool_result_chunk = chunk.tools and not (chunk.content and event_type == AgnoRunEvent.run_response.value)
+
+    if chunk.tools and (is_tool_completion_event or is_likely_tool_result_chunk):
+        for tool_call in chunk.tools:
+            tool_call_id = tool_call.get("tool_call_id", str(uuid.uuid4()))
+            tool_name = tool_call.get("tool_name", "unknown_tool")
+            tool_args = tool_call.get("tool_args", {})
+            tool_result = tool_call.get("content")
+
+            # Emit the *full sequence* for a completed tool call result here.
+            # The caller loop will use processed_tool_call_ids to avoid duplication.
+            events.append(ActionExecutionStart(type=RuntimeEventTypes.ACTION_EXECUTION_START, actionExecutionId=tool_call_id, actionName=tool_name, parentMessageId=None))
+            events.append(ActionExecutionArgs(type=RuntimeEventTypes.ACTION_EXECUTION_ARGS, actionExecutionId=tool_call_id, args=json.dumps(tool_args)))
+            events.append(ActionExecutionEnd(type=RuntimeEventTypes.ACTION_EXECUTION_END, actionExecutionId=tool_call_id))
+            if tool_result is not None:
+                events.append(ActionExecutionResult(type=RuntimeEventTypes.ACTION_EXECUTION_RESULT, actionExecutionId=tool_call_id, actionName=tool_name, result=str(tool_result)))
+
+    return events # type: ignore
+
+# --- State Filtering ---
+
+def filter_agno_state(state: Dict[str, Any]) -> Dict[str, Any]:
+    """Filters sensitive or unnecessary state before sending to frontend."""
+    filtered = {k: v for k, v in state.items() if not k.startswith("_")}
+    return filtered
+
+
+================================================
+FILE: ui/README.md
+================================================
+This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+
+## Getting Started
+
+First, run the development server:
+
+```bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+
+This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
+
+## Learn More
+
+To learn more about Next.js, take a look at the following resources:
+
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
+
+## Deploy on Vercel
+
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+
+
+
+================================================
+FILE: ui/components.json
+================================================
+{
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "style": "default",
+  "rsc": true,
+  "tsx": true,
+  "tailwind": {
+    "config": "tailwind.config.ts",
+    "css": "app/globals.css",
+    "baseColor": "slate",
+    "cssVariables": true,
+    "prefix": ""
+  },
+  "aliases": {
+    "components": "@/components",
+    "utils": "@/lib/utils"
+  }
+}
+
+
+================================================
+FILE: ui/next.config.mjs
+================================================
+/** @type {import('next').NextConfig} */
+const nextConfig = {};
+
+export default nextConfig;
+
+
+================================================
+FILE: ui/postcss.config.mjs
+================================================
+/** @type {import('postcss-load-config').Config} */
+const config = {
+  plugins: {
+    tailwindcss: {},
+  },
+};
+
+export default config;
+
+
+
+================================================
+FILE: ui/tailwind.config.ts
+================================================
+import type { Config } from "tailwindcss";
+import plugin from 'tailwindcss/plugin';
+import flattenColorPalette from "tailwindcss/lib/util/flattenColorPalette";
+
+const config = {
+  darkMode: ["class"],
+  content: [
+    "./pages/**/*.{ts,tsx}",
+    "./components/**/*.{ts,tsx}",
+    "./app/**/*.{ts,tsx}",
+    "./src/**/*.{ts,tsx}",
+  ],
+  prefix: "",
+  theme: {
+    container: {
+      center: true,
+      padding: "2rem",
+      screens: {
+        "2xl": "1400px",
+      },
+    },
+    extend: {
+      colors: {
+        border: "hsl(var(--border))",
+        input: "hsl(var(--input))",
+        ring: "hsl(var(--ring))",
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
+        primary: {
+          DEFAULT: "hsl(var(--primary))",
+          foreground: "hsl(var(--primary-foreground))",
+        },
+        secondary: {
+          DEFAULT: "hsl(var(--secondary))",
+          foreground: "hsl(var(--secondary-foreground))",
+        },
+        destructive: {
+          DEFAULT: "hsl(var(--destructive))",
+          foreground: "hsl(var(--destructive-foreground))",
+        },
+        muted: {
+          DEFAULT: "hsl(var(--muted))",
+          foreground: "hsl(var(--muted-foreground))",
+        },
+        accent: {
+          DEFAULT: "hsl(var(--accent))",
+          foreground: "hsl(var(--accent-foreground))",
+        },
+        popover: {
+          DEFAULT: "hsl(var(--popover))",
+          foreground: "hsl(var(--popover-foreground))",
+        },
+        card: {
+          DEFAULT: "hsl(var(--card))",
+          foreground: "hsl(var(--card-foreground))",
+        },
+      },
+      borderRadius: {
+        lg: "var(--radius)",
+        md: "calc(var(--radius) - 2px)",
+        sm: "calc(var(--radius) - 4px)",
+      },
+      keyframes: {
+        "accordion-down": {
+          from: { height: "0" },
+          to: { height: "var(--radix-accordion-content-height)" },
+        },
+        "accordion-up": {
+          from: { height: "var(--radix-accordion-content-height)" },
+          to: { height: "0" },
+        },
+        meteor: {
+          "0%": {
+            transform: "rotate(215deg) translateX(0)",
+            opacity: "1",
+          },
+          "70%": { opacity: "1" },
+          "100%": {
+            transform: "rotate(215deg) translateX(-500px)",
+            opacity: "0",
+          },
+        },
+      },
+      animation: {
+        "accordion-down": "accordion-down 0.2s ease-out",
+        "accordion-up": "accordion-up 0.2s ease-out",
+        "meteor-effect": "meteor 5s linear infinite",
+      },
+    },
+  },
+  plugins: [require("tailwindcss-animate"), require("@tailwindcss/typography"), addVariablesForColors, plugin(capitalizeFirstLetter)],
+} satisfies Config;
+
+function capitalizeFirstLetter({ addUtilities }: any) {
+  const newUtilities = {
+    '.capitalize-first:first-letter': {
+      textTransform: 'uppercase',
+    },
+  }
+  addUtilities(newUtilities, ['responsive', 'hover'])
+}
+
+function addVariablesForColors({ addBase, theme }: any) {
+  let allColors = flattenColorPalette(theme("colors"));
+  let newVars = Object.fromEntries(
+    Object.entries(allColors).map(([key, val]) => [`--${key}`, val])
+  );
+
+  addBase({
+    ":root": newVars,
+  });
+}
+
+export default config;
+
+
+
+================================================
+FILE: ui/tsconfig.json
+================================================
+{
+  "compilerOptions": {
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": [
+        "./*"
+      ]
+    },
+    "target": "ES2017"
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    "tailwind.config.js"
+  ],
+  "exclude": [
+    "node_modules",
+    "tailwind.config.ts"
+  ]
+}
+
+
+
+================================================
+FILE: ui/.eslintrc.json
+================================================
+{
+  "extends": "next/core-web-vitals"
+}
+
+
+
+================================================
+FILE: ui/.gitignore
+================================================
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# local env files
+.env*.local
+
+.env
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+
+
+================================================
+FILE: ui/app/globals.css
+================================================
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+
+================================================
+FILE: ui/app/layout.tsx
+================================================
+import type { Metadata } from "next";
+
+import { CopilotKit } from "@copilotkit/react-core";
+
+import "@copilotkit/react-ui/styles.css";
+import "./globals.css";
+
+export const metadata: Metadata = {
+  title: "CoAgents Starter",
+  description: "CoAgents Starter",
+};
+
+export default function RootLayout({ children }: { children: any }) {
+  return (
+    <html lang="en">
+      <body>
+        <CopilotKit
+          agent="agno_agent" // lock the agent to the sample_agent since we only have one agent
+          runtimeUrl="api/copilotkit"
+          showDevConsole={true}
+        >
+          {children}
+        </CopilotKit>
+      </body>
+    </html>
+  );
+}
+
+
+
+================================================
+FILE: ui/app/page.tsx
+================================================
+"use client";
+
+import { useCopilotAction } from "@copilotkit/react-core";
+import { CopilotSidebar } from "@copilotkit/react-ui";
+import { useState } from "react";
+import { Timeline } from "./components/Timeline";
+
+export default function Home() {
+  return (
+    <main>
+      <YourMainContent />
+      <CopilotSidebar
+        defaultOpen={true}
+        labels={{
+          title: "Popup Assistant",
+          initial: "Hi! I'm connected to an agent. How can I help?",
+        }}
+      />
+    </main>
+  );
+}
+
+function YourMainContent() {
+  const [backgroundColor, setBackgroundColor] = useState("#ADD8E6");
+
+  // Render a greeting in the chat
+  useCopilotAction({
+    name: "greetUser",
+    available: "remote", // make this available only to the agent
+    parameters: [
+      {
+        name: "name",
+        description: "The name of the user to greet.",
+      },
+    ],
+    render: ({ args }) => {
+      return (
+        <div className="text-lg font-bold bg-blue-500 text-white p-2 rounded-xl text-center">
+          Hello, {args.name}!
+        </div>
+      );
+    },
+  });
+
+  // Action for setting the background color
+  useCopilotAction({
+    name: "setBackgroundColor",
+    available: "remote", // make this available only to the agent
+    parameters: [
+      {
+        name: "backgroundColor",
+        description:
+          "The background color to set. Make sure to pick nice colors.",
+      },
+    ],
+    handler({ backgroundColor }) {
+      setBackgroundColor(backgroundColor);
+    },
+  });
+
+  return (
+    <div
+      style={{ backgroundColor }}
+      className="h-screen w-screen flex justify-center items-center flex-col"
+    >
+      <Timeline />
+    </div>
+  );
+}
+
+
+
+================================================
+FILE: ui/app/api/config.ts
+================================================
+// API Configuration
+export const backendApiBaseUrl = process.env.NEXT_PUBLIC_BACKEND_API_BASE_URL || 'http://localhost:8080/api';
+
+// API Endpoints
+export const API_ENDPOINTS = {
+    agentStop: `${backendApiBaseUrl}/agent/stop`,
+    agentHumanInput: `${backendApiBaseUrl}/agent/human_input`,
+    copilotkit: `${backendApiBaseUrl}/copilotkit`
+};
+
+
+================================================
+FILE: ui/app/api/copilotkit/route.ts
+================================================
+import { NextRequest } from "next/server";
+import {
+  CopilotRuntime,
+  copilotRuntimeNextJSAppRouterEndpoint,
+  ExperimentalEmptyAdapter,
+  // langGraphPlatformEndpoint
+} from "@copilotkit/runtime";
+
+const serviceAdapter = new ExperimentalEmptyAdapter();
+
+const runtime = new CopilotRuntime({
+  remoteEndpoints: [
+    // Uncomment this if you want to use LangGraph JS, make sure to
+    // remove the remote action url below too.
+    //
+    // langGraphPlatformEndpoint({
+    //   deploymentUrl: "http://localhost:8123",
+    //   langsmithApiKey: process.env.LANGSMITH_API_KEY || "", // only used in LangGraph Platform deployments
+    //   agents: [{
+    //       name: 'sample_agent',
+    //       description: 'A helpful LLM agent.'
+    //   }]
+    // }),
+    {
+      url: process.env.REMOTE_ACTION_URL || "http://localhost:8080/api/copilotkit",
+    },
+  ],
+});
+
+export const POST = async (req: NextRequest) => {
+  const { handleRequest } = copilotRuntimeNextJSAppRouterEndpoint({
+    runtime,
+    serviceAdapter,
+    endpoint: "/api/copilotkit",
+  });
+
+  console.log('REQ in Node seever >>> ', req);
+  return handleRequest(req);
+};
+
+
+
+================================================
+FILE: ui/app/components/Timeline.tsx
+================================================
+'use client';
+
+import { useCoAgent } from "@copilotkit/react-core";
+import ReactMarkdown from "react-markdown";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "../components/ui/accordion";
+
+interface TimelineEvent {
+  event_type: string;
+  event_summary: string;
+  event_details: string;
+}
+
+export function Timeline() {
+  const { state } = useCoAgent({
+    name: "agno_agent",
+    initialState: {
+      event_timeline: [{
+        event_type: "",
+        event_summary: "",
+        event_details: ""
+      }],
+    },
+  });
+
+  // Extract timeline events from state
+  const events = state?.event_timeline || [];
+
+  return (
+    <div className="flex flex-col gap-4 w-full max-w-3xl p-8">
+      <h1 className="bg-blue-500 p-10 rounded-xl text-white text-4xl text-center">
+        Event Timeline
+      </h1>
+      
+      <div className="bg-white rounded-lg shadow-lg p-6">
+        <Accordion type="single" collapsible className="space-y-4">
+          {events.map((event: TimelineEvent, index: number) => (
+            <AccordionItem key={index} value={`item-${index}`} className="border-l-4 border-blue-500 pl-4 py-2">
+              <AccordionTrigger className="hover:no-underline">
+                <div className="flex flex-col items-start gap-1">
+                  <div className="font-semibold text-lg capitalize">
+                    {event.event_type.replace(/_/g, ' ')}
+                  </div>
+                  <div className="text-gray-600 text-sm">
+                    {event.event_summary}
+                  </div>
+                </div>
+              </AccordionTrigger>
+              {event.event_details && (
+                <AccordionContent>
+                  <div className="text-gray-700 bg-gray-50 rounded p-4 prose prose-sm max-w-none">
+                    <ReactMarkdown>{event.event_details}</ReactMarkdown>
+                  </div>
+                </AccordionContent>
+              )}
+            </AccordionItem>
+          ))}
+        </Accordion>
+        {events.length === 0 && (
+          <div className="text-gray-500 text-center py-4">
+            No events to display yet
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+================================================
+FILE: ui/app/components/ui/accordion.tsx
+================================================
+"use client"
+
+import * as React from "react"
+import * as AccordionPrimitive from "@radix-ui/react-accordion"
+import { ChevronDown } from "lucide-react"
+
+import { cn } from "@/lib/utils"
+
+const Accordion = AccordionPrimitive.Root
+
+const AccordionItem = React.forwardRef<
+  React.ElementRef<typeof AccordionPrimitive.Item>,
+  React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Item>
+>(({ className, ...props }, ref) => (
+  <AccordionPrimitive.Item
+    ref={ref}
+    className={cn("border-b", className)}
+    {...props}
+  />
+))
+AccordionItem.displayName = "AccordionItem"
+
+const AccordionTrigger = React.forwardRef<
+  React.ElementRef<typeof AccordionPrimitive.Trigger>,
+  React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Trigger>
+>(({ className, children, ...props }, ref) => (
+  <AccordionPrimitive.Header className="flex">
+    <AccordionPrimitive.Trigger
+      ref={ref}
+      className={cn(
+        "flex flex-1 items-center justify-between py-4 font-medium transition-all hover:underline [&[data-state=open]>svg]:rotate-180",
+        className
+      )}
+      {...props}
+    >
+      {children}
+      <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
+    </AccordionPrimitive.Trigger>
+  </AccordionPrimitive.Header>
+))
+AccordionTrigger.displayName = "AccordionTrigger"
+
+const AccordionContent = React.forwardRef<
+  React.ElementRef<typeof AccordionPrimitive.Content>,
+  React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Content>
+>(({ className, children, ...props }, ref) => (
+  <AccordionPrimitive.Content
+    ref={ref}
+    className="overflow-hidden text-sm transition-all data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down"
+    {...props}
+  >
+    <div className={cn("pb-4 pt-0", className)}>{children}</div>
+  </AccordionPrimitive.Content>
+))
+AccordionContent.displayName = "AccordionContent"
+
+export { Accordion, AccordionItem, AccordionTrigger, AccordionContent }
+
+
+================================================
+FILE: ui/app/lib/utils.ts
+================================================
+import { type ClassValue, clsx } from "clsx"
+import { twMerge } from "tailwind-merge"
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs))
+}
+
+
+================================================
+FILE: ui/lib/utils.ts
+================================================
+export function cn(...inputs: string[]) {
+  return inputs.filter(Boolean).join(' ');
+}

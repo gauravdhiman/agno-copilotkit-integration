@@ -7,6 +7,7 @@ from copilotkit.integrations.fastapi import add_fastapi_endpoint
 
 # Import your Agno Agents/Workflows
 from sample_agent import sample_agent
+from markdown_agent import markdown_agent
 # from agno_agents.my_agno_workflow import my_workflow_instance
 
 # Import your adapters (adjust path)
@@ -16,7 +17,11 @@ from copilotkit_integration.agno_workflow_adapter import AgnoWorkflowAdapter
 # --- Create CopilotKit SDK Endpoint ---
 sdk = CopilotKitRemoteEndpoint(
     agents=[
-        AgnoAgentAdapter(agno_agent_instance=sample_agent),
+        AgnoAgentAdapter(
+            agno_agent_instance=sample_agent,
+            # markdown_agent_for_tool_call_response=markdown_agent,
+            enable_tool_call_logging=True
+        ),
         # AgnoWorkflowAdapter(agno_workflow_instance=my_actual_agno_workflow),
     ],
 )
