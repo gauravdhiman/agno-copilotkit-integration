@@ -30,7 +30,7 @@ interface AgentState {
 export function Timeline() {
   // Use the defined AgentState interface
   const { state, name: agentName } = useCoAgent<AgentState>({
-    name: "math_agno_agent", // Make sure this matches the backend adapter name
+    name: "agno_agent", // Make sure this matches the backend adapter name
     initialState: { // Provide a default structure matching AgentState
       event_timeline: [],
       session_state: {},

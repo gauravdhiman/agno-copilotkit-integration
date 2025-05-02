@@ -202,7 +202,7 @@ def agno_messages_to_copilotkit(agno_messages: Sequence[AgnoMessage]) -> List[Co
         elif msg.role == "assistant" and msg.tool_calls:
             # Create separate ActionExecutionMessage for each tool call
             for tool_call in msg.tool_calls:
-                 tool_call_id = tool_call.get('id')
+                 tool_call_id = tool_call.get('tool_call_id')
                  if tool_call_id and tool_call_id not in processed_tool_calls:
                      try: arguments = json.loads(tool_call.get('function', {}).get('arguments', '{}'))
                      except json.JSONDecodeError: arguments = {}
@@ -231,7 +231,7 @@ def agno_messages_to_copilotkit(agno_messages: Sequence[AgnoMessage]) -> List[Co
                      copilotkit_text_msg["id"] = str(uuid.uuid4())
                  copilotkit_messages.append(cast(CopilotKitMessage, copilotkit_text_msg))
 
-        elif msg.role in ["user", "assistant", "system"]:
+        elif msg.role in ["user", "assistant", "system", "tool"]:
             content_str = msg.get_content_string()
             if content_str is None: content_str = ""
             copilotkit_msg = {

@@ -19,8 +19,6 @@ sample_agent = Agent(
     description="You are a helpful assistant who can search web, crawl page contents and also search financial information using given tools to achieve the given user goal.",
     # model=OpenAIChat(id="gpt-4o-mini"),
     model=Gemini(id="gemini-2.5-flash-preview-04-17"),  # or any other supported model
-    # model=OpenRouter(id="qwen/qwq-32b"),  # or any other supported model
-    # model=Groq(id="llama-3.3-70b-versatile"),  # or any other supported model
     instructions=[
         "If user input is not sufficent, ask user relevant questions / clarifications",
         "To search the web, use google search tool.",
@@ -28,15 +26,18 @@ sample_agent = Agent(
         "To get financial information about companies, use YFinance tools"
     ],
     storage=agent_storage,
-    # add_history_to_messages=True,
-    # num_history_responses=5,
     tools=[
         GoogleSearchTools(),
         YFinanceTools(enable_all=True),
         Crawl4aiTools(max_length=5000)
     ],
-    # reasoning=True,
     stream_intermediate_steps=True,
     add_datetime_to_instructions=True,
     debug_mode=True
 )
+
+user_prompt = "whats the latest news about China"
+for res in sample_agent.run(user_prompt, stream=True):
+    print(f"Response Type: {res.event}")
+    print(f"Tools: {res.tools}")
+    # print(f"Messages: {res.messages}")

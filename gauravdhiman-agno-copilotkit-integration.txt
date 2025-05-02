@@ -275,7 +275,7 @@ def google_search(
     return json_string
 
 sample_agent = Agent(
-    name="math_agno_agent",
+    name="agno_agent",
     description="You are a helpful assistant who can solve math problems.",
     # model=OpenAIChat(id="gpt-4o-mini"),
     model=Gemini(id="gemini-2.5-flash-preview-04-17"),  # or any other supported model
@@ -1627,7 +1627,7 @@ export default function RootLayout({ children }: { children: any }) {
     <html lang="en">
       <body>
         <CopilotKit
-          agent="math_agno_agent" // lock the agent to the sample_agent since we only have one agent
+          agent="agno_agent" // lock the agent to the sample_agent since we only have one agent
           runtimeUrl="api/copilotkit"
           showDevConsole={true}
         >
@@ -1796,7 +1796,7 @@ interface TimelineEvent {
 
 export function Timeline() {
   const { state } = useCoAgent({
-    name: "math_agno_agent",
+    name: "agno_agent",
     initialState: {
       event_timeline: [{
         event_type: "",

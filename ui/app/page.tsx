@@ -113,7 +113,7 @@ function YourMainContent() {
   // This hook listens for AgentStateMessages from the specified agent
   // and renders the timeline directly into the chat message flow.
   useCoAgentStateRender<AgentStateFromBackend>({
-    name: "math_agno_agent", // MUST match the agent name in the backend adapter
+    name: "agno_agent", // MUST match the agent name in the backend adapter
     // Below reder funciton is to show only the latest state of an agent, not complete timeline
     // render: ({ state, status, nodeName }) => {
     //   // Get the *very last* event from the timeline *in this specific state update*

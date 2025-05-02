@@ -11,21 +11,22 @@ import json
 import traceback
 import uuid
 import copy
-from typing import Any, AsyncGenerator, Dict, List, Optional, cast, Set
+from textwrap import dedent
+from typing import Any, AsyncGenerator, Dict, List, Optional, cast, Set, Callable, Awaitable
 
+from agno.tools.function import Function
 from copilotkit.agent import Agent as CopilotKitAgentBase
 from copilotkit.action import ActionDict
 from copilotkit.types import Message as CopilotKitMessage, MetaEvent
 from copilotkit.protocol import (
     RuntimeEventTypes, RuntimeMetaEventName, RuntimeProtocolEvent,
-    TextMessageStart, TextMessageContent, TextMessageEnd,
+    TextMessageStart, TextMessageEnd,
     NodeStarted, NodeFinished, RunStarted, RunFinished, RunError,
 )
 from copilotkit.runloop import (
-    AgentStateMessage, agent_state_message, copilotkit_run, CopilotKitRunExecution, get_context_execution, queue_put
+    copilotkit_run, CopilotKitRunExecution, get_context_execution, queue_put
 )
 
-# Import Agno classes
 from agno.agent.agent import Agent as AgnoAgentInternal
 from agno.models.message import Message as AgnoMessage
 from agno.run.response import RunResponse as AgnoRunResponse, RunEvent as AgnoRunEvent
@@ -33,7 +34,6 @@ from agno.exceptions import RunCancelledException
 from agno.memory import AgentMemory # Legacy Memory
 from agno.memory.v2 import Memory as MemoryV2 # New Memory
 
-# Import Utilities
 from .utils import (
     copilotkit_messages_to_agno,
     agno_messages_to_copilotkit,
@@ -43,23 +43,26 @@ from .utils import (
     CopilotKitStateProperties, # Import the properties model
     TimelineEvent # Import the new timeline event model
 )
-# Import playground operator helper (assuming it's moved or accessible)
-# If this causes import issues, move format_tools to utils.py
 from agno.playground.operator import format_tools
 
 
 class AgnoAgentAdapter(CopilotKitAgentBase):
-    """CopilotKit Adapter for running Agno Agents with streaming using runloop."""
+    """CopilotKit Adapter for running Agno Agents with streaming using runloop.
+    """
     def __init__(
         self,
         agno_agent_instance: AgnoAgentInternal,
         user_id_property: str = "userId",       # Revisit: Should user id even be here ??
-        name=None,
-        description=None,
-        last_tool_call_response_key_in_session_state:str= 'last_tool_call_response',
-        eligible_events_for_timeline:List[AgnoRunEvent]=[
-            AgnoRunEvent.tool_call_started,
-            AgnoRunEvent.tool_call_completed
+        name: str = None,
+        description: str = None,
+        enable_tool_call_logging: bool = False,
+        markdown_agent_for_tool_call_response: AgnoAgentInternal = None,
+        tool_call_frontend_action_name:str = "display_tool_call_details",
+        eligible_events_for_timeline:List[AgnoRunEvent] = [
+            AgnoRunEvent.reasoning_step,
+            AgnoRunEvent.reasoning_completed,
+            AgnoRunEvent.tool_call_completed,
+            AgnoRunEvent.run_error,
         ],
         **kwargs,
     ):
@@ -67,13 +70,35 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
         Wrapper class over Agno Agent to bridge the communication between Agno and Copilotkit.
 
         Args:
-            agno_agent_instance (AgnoAgentInternal): An instance of an Agno agent that will be wrapped.
-            user_id_property (str, optional): Property name used to store the user ID. Defaults to "userId".
-            name (str, optional): Name for this agent adapter. If not provided, uses the Agno agent's name.
-            description (str, optional): Description for this agent adapter. If not provided, uses the Agno agent's description.
-            last_tool_call_response_key_in_session_state (str, optional): Key used to store the last tool call response in session state. 
-                Defaults to 'last_tool_call_response'.
-            **kwargs: Additional keyword arguments passed to the parent CopilotKitAgentBase class.
+            - agno_agent_instance (AgnoAgent): An instance of an Agno agent that will be wrapped.
+            - markdown_agent_for_tool_call_response (AgnoAgent): If provided, this agent will be used for converting each tool call response (from agno_agent_instance) into markdown format for better readability 
+                and presenation, defore emitting Action Messages. BE AWARE, this will normally lead to high latency as this additional agent call will be done for each tool call on main Agno agent.
+                Defaults to `None`
+            - user_id_property (str, optional): Property name used to store the user ID. Defaults to `userId`.
+            - name (str, optional): Name for this agent adapter. This is what the frontend copilotkit should be aware of. If not provided, uses the Agno agent's name.
+            - description (str, optional): Description for this agent adapter. If not provided, uses the Agno agent's description.
+            - tool_call_frontend_action_name (str, optional): Name of the frontend copilotkit action (check useCopilotAction hook) to display tool call details.
+                Defaults to `display_tool_call_details`. The dedault setting expects below copilotkit action hook to show tool calls, if not presents, events will be ignored.
+                
+                ```
+                useCopilotAction({
+                    name: "display_tool_call_details",
+                    description: "Displays the details and results of a completed tool call in the chat.",
+                    parameters: [
+                        { name: "tool_call_summary", type: "string", description: "One liner summary of tool call.", required: false },
+                        { name: "tool_name", type: "string", description: "Name of the tool called", required: true },
+                        { name: "tool_args", type: "string", description: "Stringified arguments of the tool call", required: false },
+                        { name: "tool_result", type: "string", description: "Result / outcome of tool call", required: true },
+                    ],
+                    render: ({ args, status }) => {},
+                }
+                ```
+
+            - enable_tool_call_logging (bool, optional): This controls if the `ActionExecution***` messages (`ActionExecutionStart`, `ActionExecutionArgs`, `ActionExecutionEnd` and `ActionExecutionResult`) 
+                should be emitted or not. Defaults to `False`.
+            - eligible_events_for_timeline (List[AgnoRunEvent], optional): List of Agno agent's lifecycle events that should be included in the event timeline.
+                Defaults to [reasoning_started, reasoning_step, reasoning_completed, tool_call_started, tool_call_completed, run_error].
+            - **kwargs: Additional keyword arguments passed to the parent CopilotKitAgentBase class.
         """
         super().__init__(
             name=name or agno_agent_instance.name or agno_agent_instance.__class__.__name__,
@@ -82,8 +107,13 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
         )
         self.agno_agent = agno_agent_instance
         self.user_id_property = user_id_property
-        self.last_tool_call_response_key_in_session_state = last_tool_call_response_key_in_session_state
+        self.markdown_agent_for_tool_call_response = markdown_agent_for_tool_call_response
         self.eligible_events_for_timeline = eligible_events_for_timeline
+        self.tool_call_frontend_action_name = tool_call_frontend_action_name
+        self.enable_tool_call_logging = enable_tool_call_logging
+        self.is_markdown_agent_setup_done = False
+        self.is_tool_call_logging_setup_done = False   # Determines if the tool call logging setup has been done or not
+        
         # Initialize the state object
         self.copilot_agno_state = CopilotKitAgnoState(
             messages=[],
@@ -164,6 +194,20 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
         self.copilot_agno_state = new_state
         print(f"[{self.name}] CopilotKitAgnoState update complete.") # Add logging
 
+
+    def _setup_markdown_agent(self):
+        if not self.is_markdown_agent_setup_done:
+            if not self.markdown_agent_for_tool_call_response.instructions:
+                self.markdown_agent_for_tool_call_response.instructions = []
+            self.markdown_agent_for_tool_call_response.instructions.append("Convert the given content to well formatted markdown content.")
+            self.markdown_agent_for_tool_call_response.instructions.append("If there are any URLs, make them as link")
+            self.markdown_agent_for_tool_call_response.instructions.append("If appropriate, buse bullet points")
+            self.markdown_agent_for_tool_call_response.instructions.append("Make text to be highligted as bold")
+            self.markdown_agent_for_tool_call_response.instructions.append("ENSURE NOTHING CHANGES OTHER THAN THE FORMAT. NEVER ALTER THE CONTENT - IT SHOULD BE WORD TO WORD SAME.")
+            
+            self.is_markdown_agent_setup_done = True
+    
+
     async def _process_agno_stream_and_queue(self, execution_details: CopilotKitRunExecution) -> None:
         """
         Coroutine that executes Agno agent's arun, maps events, and puts them on the queue.
@@ -212,6 +256,7 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
 
             # Process each chunk in the stream
             async for agno_chunk in agno_stream:
+                protocol_event_dicts: List[Dict[str, Any]] = []
                 if not isinstance(agno_chunk, AgnoRunResponse):
                     continue # Skip non-response chunks if any
 
@@ -304,14 +349,40 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
                         tool_name = agno_chunk.tools[-1].get('tool_name', tool_name).replace('_', ' ')
                     event_summary = f"Calling tool: {tool_name}"
                 elif agno_event_type == AgnoRunEvent.tool_call_completed.value:
+                    tool_call_id = str(uuid.uuid4())
                     tool_name = "unknown tool"
+                    tool_args = {}
                     tool_result = ""
-                    if self.agno_agent.session_state and self.last_tool_call_response_key_in_session_state in self.agno_agent.session_state and self.agno_agent.session_state[self.last_tool_call_response_key_in_session_state]:
-                        tool_result = str(self.agno_agent.session_state[self.last_tool_call_response_key_in_session_state])
                     if agno_chunk.tools and len(agno_chunk.tools) > 0:
-                        tool_name = agno_chunk.tools[0].get('tool_name', tool_name).replace('_', ' ')
+                        tool_name = agno_chunk.tools[-1].get('tool_name', tool_name).replace('_', ' ')
+                        tool_name = str(tool_name).title()
+                        tool_args = agno_chunk.tools[-1].get('tool_args', {})
+                        if tool_args and isinstance(tool_args, dict):
+                            tool_args = json.dumps(tool_args)
+                        tool_call_id = agno_chunk.tools[-1].get('tool_call_id', tool_call_id)
+                        tool_result = agno_chunk.tools[-1].get('content', "")
+                        if tool_result and self.markdown_agent_for_tool_call_response:
+                            self._setup_markdown_agent()
+                            response_obj = self.markdown_agent_for_tool_call_response.run(dedent(f"""
+                                Convert the below content to markdoen format:
+                                
+                                <Content>
+                                {tool_result}
+                                </Content>
+                            """))
+                            tool_result = response_obj.content if response_obj.content else ""
+
                     event_summary = f"Finished calling tool: {tool_name}"
                     event_details=f"{tool_result}"
+                    
+                    if self.enable_tool_call_logging:
+                        # After every tool call completion, we should trigger frontend action to show tool details on UI. Its up to UI to catch it or not.
+                        action_execution_events: List[Dict[str, Any]] = []
+                        action_execution_events.append({"type": RuntimeEventTypes.ACTION_EXECUTION_START, "actionExecutionId": tool_call_id, "actionName": self.tool_call_frontend_action_name, "parentMessageId": None})
+                        action_execution_events.append({"type": RuntimeEventTypes.ACTION_EXECUTION_ARGS, "actionExecutionId": tool_call_id, "args": json.dumps({"tool_call_summary": f"Called {tool_name}", "tool_name": tool_name, "tool_args": tool_args, "tool_result": tool_result})}) # Use dictionary directly
+                        action_execution_events.append({"type": RuntimeEventTypes.ACTION_EXECUTION_END, "actionExecutionId": tool_call_id})
+                        action_execution_events.append({"type": RuntimeEventTypes.ACTION_EXECUTION_RESULT, "actionExecutionId": tool_call_id, "actionName": self.tool_call_frontend_action_name, "result": json.dumps({'BackendResult': 'Execution done'})})
+                        await queue_put(*action_execution_events)
                 elif agno_event_type == AgnoRunEvent.updating_memory.value:
                     event_summary = "Agent is updating its memory."
                 elif agno_event_type == AgnoRunEvent.run_error.value:
@@ -342,20 +413,6 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
                     # elif agno_event_type == AgnoRunEvent.reasoning_step.value:
                     elif agno_event_type == AgnoRunEvent.tool_call_started.value:
                         await queue_put(NodeStarted(type=RuntimeEventTypes.NODE_STARTED, node_name="tool_call_started", state=current_state))
-                        # REVISIT (TEMP - NEEDS TO REMOVE): Send some dummy test text message to test the chronological order of messages dispaled
-                        # events_to_queue = []
-                        # e = TextMessageContent(type=RuntimeEventTypes.TEXT_MESSAGE_CONTENT, messageId="PLACEHOLDER_ID", content="This is test message just after tool calling started")
-                        # is_text_chunk = True
-                        # if current_text_message_id is None:
-                        #     # Start a new text message block if one isn't active
-                        #     current_text_message_id = str(uuid.uuid4())
-                        #     start_event = TextMessageStart(type=RuntimeEventTypes.TEXT_MESSAGE_START, messageId=current_text_message_id, parentMessageId=None) # type: ignore
-                        #     events_to_queue.append(start_event)
-                        # e["messageId"] = current_text_message_id # Use the active message ID
-                        # events_to_queue.append(e)
-                        # end_event = TextMessageStart(type=RuntimeEventTypes.TEXT_MESSAGE_END, messageId=current_text_message_id, parentMessageId=None) # type: ignore
-                        # events_to_queue.append(end_event)
-                        # await queue_put(*events_to_queue)
                     elif agno_event_type == AgnoRunEvent.tool_call_completed.value:
                         await queue_put(NodeFinished(type=RuntimeEventTypes.NODE_FINISHED, node_name="tool_call_ended", state=current_state))
                     elif agno_event_type == AgnoRunEvent.updating_memory.value:
@@ -371,7 +428,6 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
                     await queue_put(RunFinished(type=RuntimeEventTypes.RUN_FINISHED, state=current_state), priority=True)
                     run_has_finished = True # Mark as finished on error too
                     break # Stop processing stream on error
-
 
             # --- After Loop ---
             # Ensure any final open text message is closed
@@ -427,6 +483,7 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
                      print(f"[{agent_name}] Error saving final state for thread {thread_id}: {save_err}")
             print(f"[{agent_name}] Agno agent processing coroutine finished for run {run_id}")
 
+
     # execute, get_state, and dict_repr methods remain unchanged from the previous version
     def execute(
         self,
@@ -445,6 +502,8 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
         user_id = (properties or {}).get(self.user_id_property, f"user_{thread_id}")
 
         should_exit = False
+        # clearup the timeline in state
+        self.copilot_agno_state.event_timeline = []
         if meta_events:
             for event in meta_events:
                 # Check if the frontend requested an exit

@@ -242,7 +242,7 @@ export default function CustomChatAndDebugPage() {
       <div className="w-full md:w-1/2 lg:w-2/5 h-1/2 md:h-full flex flex-col p-4">
         <h2 className="text-xl font-semibold mb-2 text-gray-700 shrink-0">Debug: `visibleMessages` (Raw Hook Output)</h2>
         <div className="flex-grow bg-gray-900 text-green-400 p-3 rounded-lg shadow-inner overflow-x-auto text-xs font-mono overflow-y-scroll">
-          <pre>{JSON.stringify(simplifiedMessagesForDebug, null, 2)}</pre>
+          <pre>{JSON.stringify(visibleMessages, null, 2)}</pre>
         </div>
       </div>
 
