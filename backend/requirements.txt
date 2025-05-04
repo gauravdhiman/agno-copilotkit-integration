@@ -8,6 +8,7 @@ asyncio
 pydantic
 uuid
 groq
+llama-api-client
 google-genai
 googlesearch-python
 pycountry
@@ -16,3 +17,4 @@ pycountry
 yfinance
 crawl4ai
 markitdown
+mcp

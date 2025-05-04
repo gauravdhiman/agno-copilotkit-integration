@@ -13,17 +13,17 @@ importers:
   .:
     dependencies:
       '@copilotkit/react-core':
-        specifier: 1.8.2
-        version: 1.8.2(@types/react@19.0.1)(graphql@16.9.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
+        specifier: 1.8.9
+        version: 1.8.9(@types/react@19.0.1)(graphql@16.9.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       '@copilotkit/react-ui':
-        specifier: 1.8.2
-        version: 1.8.2(@types/react@19.0.1)(graphql@16.9.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
+        specifier: 1.8.9
+        version: 1.8.9(@types/react@19.0.1)(graphql@16.9.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       '@copilotkit/runtime':
-        specifier: 1.8.2
-        version: 1.8.2(@browserbasehq/sdk@2.2.0)(@browserbasehq/stagehand@1.12.0(@playwright/test@1.50.1)(deepmerge@4.3.1)(dotenv@16.4.7)(openai@4.70.2(zod@3.23.8))(zod@3.23.8))(@ibm-cloud/watsonx-ai@1.5.0(@langchain/core@0.3.39(openai@4.86.1(ws@8.18.0)(zod@3.23.8))))(axios@1.7.9)(google-auth-library@8.9.0)(ibm-cloud-sdk-core@5.1.2)(ignore@5.3.2)(jsonwebtoken@9.0.2)(playwright@1.50.1)(ws@8.18.0)
+        specifier: 1.8.9
+        version: 1.8.9(@browserbasehq/sdk@2.2.0)(@browserbasehq/stagehand@1.12.0(@playwright/test@1.50.1)(deepmerge@4.3.1)(dotenv@16.4.7)(openai@4.70.2(zod@3.23.8))(zod@3.23.8))(@ibm-cloud/watsonx-ai@1.5.0(@langchain/core@0.3.39(openai@4.86.1(ws@8.18.0)(zod@3.23.8))))(axios@1.7.9)(google-auth-library@8.9.0)(ibm-cloud-sdk-core@5.1.2)(ignore@5.3.2)(jsonwebtoken@9.0.2)(playwright@1.50.1)(ws@8.18.0)
       '@copilotkit/runtime-client-gql':
-        specifier: 1.8.2
-        version: 1.8.2(graphql@16.9.0)(react@19.0.0)
+        specifier: 1.8.9
+        version: 1.8.9(graphql@16.9.0)(react@19.0.0)
       '@radix-ui/react-accordion':
         specifier: ^1.2.0
         version: 1.2.0(@types/react-dom@19.0.2(@types/react@19.0.1))(@types/react@19.0.1)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
@@ -119,8 +119,8 @@ importers:
         specifier: ^9.0.0
         version: 9.16.0(jiti@1.21.6)
       eslint-config-next:
-        specifier: 15.1.0
-        version: 15.1.0(eslint@9.16.0(jiti@1.21.6))(typescript@5.5.4)
+        specifier: latest
+        version: 15.3.1(eslint@9.16.0(jiti@1.21.6))(typescript@5.5.4)
       postcss:
         specifier: ^8
         version: 8.4.41
@@ -140,6 +140,18 @@ packages:
     peerDependenciesMeta:
       graphql:
         optional: true
+
+  '@agentwire/client@0.0.26':
+    resolution: {integrity: sha512-EoZBoKzRit+o2vQ4Nu0lgnM3ONXeKiOdxHLhNX94egAJbXsC1LPvnsTFYJKONYLYqAM4Bqpn8Yrz9e38RFj9pQ==}
+
+  '@agentwire/core@0.0.26':
+    resolution: {integrity: sha512-sUJwPt9AUAOq00/ZWyK2XtXLlD92eD3QTOTr8v0lcryst+f8FffoC9MSKx7aTFtmTL8g2Ku/0LnyLvsnOTweqg==}
+
+  '@agentwire/encoder@0.0.26':
+    resolution: {integrity: sha512-Amtv4ogNoj63FHkABLnWxaVvoSl+5r1V+HkjuZGvcdgkT5PJLFq2VRYQMNoLg4zW3uK7SOjqngRlQvqukTpb3g==}
+
+  '@agentwire/proto@0.0.26':
+    resolution: {integrity: sha512-SGBFWf4cNrapEgcSVMt9wMVi8XTIuah5tMVPeY7fyWA/569Plp3fgBNg9rQceGYRGdrZmIhGeYvWjS2+Th9Wyg==}
 
   '@alloc/quick-lru@5.2.0':
     resolution: {integrity: sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw==}
@@ -164,30 +176,33 @@ packages:
       openai: ^4.62.1
       zod: ^3.23.8
 
+  '@bufbuild/protobuf@2.2.5':
+    resolution: {integrity: sha512-/g5EzJifw5GF8aren8wZ/G5oMuPoGeS6MQD3ca8ddcvdXR5UELUfdTZITCGNhNXynY/AYl3Z4plmxdj/tRl/hQ==}
+
   '@cfworker/json-schema@4.1.1':
     resolution: {integrity: sha512-gAmrUZSGtKc3AiBL71iNWxDsyUC5uMaKKGdvzYsBoTW/xi42JQHl7eKV2OYzCUqvc+D2RCcf7EXY2iCyFIk6og==}
 
-  '@copilotkit/react-core@1.8.2':
-    resolution: {integrity: sha512-lQj6PovM7sTYbDPzo9hyzBEB7VCFxWz0NFFAFzzzBMFMh8gPBRiOamsOv/jZTDV3k1z9uQgBxfME6AYe+yVeNw==}
+  '@copilotkit/react-core@1.8.9':
+    resolution: {integrity: sha512-DHiudWabc1w6pqj/wjtW+hBXRcYbs5eE8/3mA0AVR+XoTNvBF5v9DJAqag3pZ8J42ieB3keBS3sfeBPfrg36Zw==}
     peerDependencies:
       react: ^18 || ^19 || ^19.0.0-rc
       react-dom: ^18 || ^19 || ^19.0.0-rc
 
-  '@copilotkit/react-ui@1.8.2':
-    resolution: {integrity: sha512-1KMy7y61ApgVyDZy9TpUR764moKqmP8tv/7TLAA3M7MsIJF8EC5qv304U2d+0sIEqqFiNF2z6qjTBbNp/20IhA==}
+  '@copilotkit/react-ui@1.8.9':
+    resolution: {integrity: sha512-h/dXlXjHlsZzwq6FhE89LIUByo0QcQnhEU/RWqR4Qc/qaTUhGkWT8EgAJB4zJmL4KSQEiiAOu3dRsCFj/1ZZNQ==}
     peerDependencies:
       react: ^18 || ^19 || ^19.0.0-rc
 
-  '@copilotkit/runtime-client-gql@1.8.2':
-    resolution: {integrity: sha512-myREgwz86UkluSqkZ8f2IL2/+/BNi0v0Utp5WLkpReXaTCx+ryFmcytyZCS9hclC2RnMQvSW89kaO/7o7+XeEw==}
+  '@copilotkit/runtime-client-gql@1.8.9':
+    resolution: {integrity: sha512-hhZbEPFpCHDQBJJ4u94pa7LE22OYOlF8cwkL10jpxiUc1ikfMDICTgZ2gqnArzwzWFiMnNFf4w3SewcPaRMoAw==}
     peerDependencies:
       react: ^18 || ^19 || ^19.0.0-rc
 
-  '@copilotkit/runtime@1.8.2':
-    resolution: {integrity: sha512-ehWARHCHZ0FT3C/csfw/aidE0nGrLtfH5d8RvMoZZTe1gKUkgfmkES1+bFMS1AMVj2erKSegh7PshfSzTvW6LA==}
+  '@copilotkit/runtime@1.8.9':
+    resolution: {integrity: sha512-NwhALsDgSDoiv10N8cKRVk+9884fyHMHDuz1fpbr313wYvoBH6pCRO4r3ZLOAGJ6tYoIWzVah24VtwuSRw57yw==}
 
-  '@copilotkit/shared@1.8.2':
-    resolution: {integrity: sha512-1Ak3RX+jiC57gaBfVC4Db1D+5DURkPFEzkauVRcMPWMkJUidaMLvbzuI2lasxBrXhM5WQ4gtuDgQ5QYTsLFD4w==}
+  '@copilotkit/shared@1.8.9':
+    resolution: {integrity: sha512-KHwk3yI20k6e0HVkuB2NjpFv+XV0Po+INKhpNoUOYmpsfbqnTFQm+BoKPuFw1M5opGle/kRUU4Udd1tn4fc9pw==}
 
   '@emnapi/runtime@1.3.1':
     resolution: {integrity: sha512-kEBmG8KyqtxJZv+ygbEim+KCGtIq1fC22Ms3S4ziXmYKm8uyoLX0MHONVKwp+9opg390VaKRNt4a7A9NwmpNhw==}
@@ -205,10 +220,6 @@ packages:
     engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
     peerDependencies:
       eslint: ^6.0.0 || ^7.0.0 || >=8.0.0
-
-  '@eslint-community/regexpp@4.11.0':
-    resolution: {integrity: sha512-G/M/tIiMrTAxEWRfLfQJMmGNX28IxBg4PBz8XqQhqUHLFI6TL2htpIB1iQCj144V5ee/JaKyT9/WZ0MGZWfA7A==}
-    engines: {node: ^12.0.0 || ^14.0.0 || >=16.0.0}
 
   '@eslint-community/regexpp@4.12.1':
     resolution: {integrity: sha512-CCZCDJuduB9OUkFkY2IgppNZMi2lBQgD2qzwXkEia16cge2pijY/aXi96CJMquDMn3nJdlPV1A5KrJEXwfLNzQ==}
@@ -890,8 +901,8 @@ packages:
   '@next/env@15.1.0':
     resolution: {integrity: sha512-UcCO481cROsqJuszPPXJnb7GGuLq617ve4xuAyyNG4VSSocJNtMU5Fsx+Lp6mlN8c7W58aZLc5y6D/2xNmaK+w==}
 
-  '@next/eslint-plugin-next@15.1.0':
-    resolution: {integrity: sha512-+jPT0h+nelBT6HC9ZCHGc7DgGVy04cv4shYdAe6tKlEbjQUtwU3LzQhzbDHQyY2m6g39m6B0kOFVuLGBrxxbGg==}
+  '@next/eslint-plugin-next@15.3.1':
+    resolution: {integrity: sha512-oEs4dsfM6iyER3jTzMm4kDSbrQJq8wZw5fmT6fg2V3SMo+kgG+cShzLfEV20senZzv8VF+puNLheiGPlBGsv2A==}
 
   '@next/swc-darwin-arm64@15.1.0':
     resolution: {integrity: sha512-ZU8d7xxpX14uIaFC3nsr4L++5ZS/AkWDm1PzPO6gD9xWhFkOj2hzSbSIxoncsnlJXB1CbLOfGVN4Zk9tg83PUw==}
@@ -2312,10 +2323,6 @@ packages:
     resolution: {integrity: sha512-LMHl3dXhTcfv8gM4kEzIUeTQ+7fpdA0l2tUf34BddXPkz2A5xJ5L/Pchd5BL6rdccM9QGvu0sWZzK1Z1t4wwyg==}
     engines: {node: '>=10.13.0'}
 
-  es-abstract@1.23.3:
-    resolution: {integrity: sha512-e+HfNH61Bj1X9/jLc5v1owaLYuHdeHHSQlkhCBiTK8rBvKaULl/beGMxwrMXjpYrv4pz22BlY570vVePA2ho4A==}
-    engines: {node: '>= 0.4'}
-
   es-abstract@1.23.5:
     resolution: {integrity: sha512-vlmniQ0WNPwXqA0BnmwV3Ng7HxiGlh6r5U6JcTMNx8OilcAGqVJBHJcPjqOMaczU9fRuRK5Px2BdVyPRnKMMVQ==}
     engines: {node: '>= 0.4'}
@@ -2362,8 +2369,8 @@ packages:
     resolution: {integrity: sha512-/veY75JbMK4j1yjvuUxuVsiS/hr/4iHs9FTT6cgTexxdE0Ly/glccBAkloH/DofkjRbZU3bnoj38mOmhkZ0lHw==}
     engines: {node: '>=12'}
 
-  eslint-config-next@15.1.0:
-    resolution: {integrity: sha512-gADO+nKVseGso3DtOrYX9H7TxB/MuX7AUYhMlvQMqLYvUWu4HrOQuU7cC1HW74tHIqkAvXdwgAz3TCbczzSEXw==}
+  eslint-config-next@15.3.1:
+    resolution: {integrity: sha512-GnmyVd9TE/Ihe3RrvcafFhXErErtr2jS0JDeCSp3vWvy86AXwHsRBt0E3MqP/m8ACS1ivcsi5uaqjbhsG18qKw==}
     peerDependencies:
       eslint: ^7.23.0 || ^8.0.0 || ^9.0.0
       typescript: '>=3.3.1'
@@ -2389,27 +2396,6 @@ packages:
 
   eslint-module-utils@2.12.0:
     resolution: {integrity: sha512-wALZ0HFoytlyh/1+4wuZ9FJCD/leWHQzzrxJ8+rebyReSLk7LApMyd3WJaLVoN+D5+WIdJyDK1c6JnE65V4Zyg==}
-    engines: {node: '>=4'}
-    peerDependencies:
-      '@typescript-eslint/parser': '*'
-      eslint: '*'
-      eslint-import-resolver-node: '*'
-      eslint-import-resolver-typescript: '*'
-      eslint-import-resolver-webpack: '*'
-    peerDependenciesMeta:
-      '@typescript-eslint/parser':
-        optional: true
-      eslint:
-        optional: true
-      eslint-import-resolver-node:
-        optional: true
-      eslint-import-resolver-typescript:
-        optional: true
-      eslint-import-resolver-webpack:
-        optional: true
-
-  eslint-module-utils@2.8.2:
-    resolution: {integrity: sha512-3XnC5fDyc8M4J2E8pt8pmSVRX2M+5yWMCfI/kDZwauQeFgzQOuhcRBFKjTeJagqgk4sFKxe1mvNVnaWwImx/Tg==}
     engines: {node: '>=4'}
     peerDependencies:
       '@typescript-eslint/parser': '*'
@@ -2547,6 +2533,9 @@ packages:
   fast-glob@3.3.2:
     resolution: {integrity: sha512-oX2ruAFQwf/Orj8m737Y5adxDQO0LAB7/S5MnxCdTNDd4p6BsyIVsv9JQsATbTSq8KHRpLwIHbVlUNatxd+1Ow==}
     engines: {node: '>=8.6.0'}
+
+  fast-json-patch@3.1.1:
+    resolution: {integrity: sha512-vf6IHUX2SBcA+5/+4883dsIjpBTqmfBjmYiWK1savxQmFk4JfBMLa7ynTYOs1Rolp/T1betJxHiGD3g1Mn8lUQ==}
 
   fast-json-stable-stringify@2.1.0:
     resolution: {integrity: sha512-lhd/wF+Lk98HZoTCtlVraHtfh5XYijIjalXck7saUtuanSDyLMxnHhSXEDJqHxD7msR8D0uCmqlkwjCV8xvwHw==}
@@ -2927,9 +2916,6 @@ packages:
     resolution: {integrity: sha512-Y1JXKrfykRJGdlDwdKlLpLyMIiWqWvuSd17TvZk68PLAOGOoF4Xyav1z0Xhoi+gCYjZVeC5SI+hYFOfvXmGRCA==}
     engines: {node: '>= 0.4'}
 
-  is-bigint@1.0.4:
-    resolution: {integrity: sha512-zB9CruMamjym81i2JZ3UMn54PKGsQzsJeo6xvN3HJJ4CAsQNB6iRutp2To77OfCNuoxspsIhzaPoO1zyCEhFOg==}
-
   is-bigint@1.1.0:
     resolution: {integrity: sha512-n4ZT37wG78iz03xPRKJrHTdZbe3IicyucEtdRsV5yglwc3GyUfbAfpSeD0FJ41NbUNSt5wbhqfp1fS+BgnvDFQ==}
     engines: {node: '>= 0.4'}
@@ -2937,10 +2923,6 @@ packages:
   is-binary-path@2.1.0:
     resolution: {integrity: sha512-ZMERYes6pDydyuGidse7OsHxtbI7WVeUEozgR/g7rd0xUimYNlvZRE/K2MgZTjWy725IfelLeVcEM97mmtRGXw==}
     engines: {node: '>=8'}
-
-  is-boolean-object@1.1.2:
-    resolution: {integrity: sha512-gDYaKHJmnj4aWxyj6YHyXVpdQawtVLHU5cb+eztPGczf6cjuTdwve5ZIEfgXqH4e57An1D1AKf8CZ3kYrQRqYA==}
-    engines: {node: '>= 0.4'}
 
   is-boolean-object@1.2.1:
     resolution: {integrity: sha512-l9qO6eFlUETHtuihLcYOaLKByJ1f+N4kthcU9YjHy3N+B3hWv0y/2Nd0mu/7lTFnRQHTrSdXF50HQ3bl5fEnng==}
@@ -2963,10 +2945,6 @@ packages:
 
   is-data-view@1.0.1:
     resolution: {integrity: sha512-AHkaJrsUVW6wq6JS8y3JnM/GJF/9cf+k20+iDzlSaJrinEo5+7vRiteOSwBhHRiAyQATN1AmY4hwzxJKPmYf+w==}
-    engines: {node: '>= 0.4'}
-
-  is-date-object@1.0.5:
-    resolution: {integrity: sha512-9YQaSxsAiSwcvS33MBk3wTCVnWK+HhF8VZR2jRxehM16QcVOdHqPn4VPHmRK4lSr38n9JriurInLcP90xsYNfQ==}
     engines: {node: '>= 0.4'}
 
   is-date-object@1.1.0:
@@ -3017,10 +2995,6 @@ packages:
     resolution: {integrity: sha512-5KoIu2Ngpyek75jXodFvnafB6DJgr3u8uuK0LEZJjrU19DrMD3EVERaR8sjz8CCGgpZvxPl9SuE1GMVPFHx1mw==}
     engines: {node: '>= 0.4'}
 
-  is-number-object@1.0.7:
-    resolution: {integrity: sha512-k1U0IRzLMo7ZlYIfzRu23Oh6MiIFasgpb9X76eqfFZAqwH44UI4KTBvBYIZ1dSL9ZzChTB9ShHfLkR4pdW5krQ==}
-    engines: {node: '>= 0.4'}
-
   is-number-object@1.1.0:
     resolution: {integrity: sha512-KVSZV0Dunv9DTPkhXwcZ3Q+tUc9TsaE1ZwX5J2WMvsSGS6Md8TFPun5uwh0yRdrNerI6vf/tbJxqSx4c1ZI1Lw==}
     engines: {node: '>= 0.4'}
@@ -3032,10 +3006,6 @@ packages:
   is-plain-obj@4.1.0:
     resolution: {integrity: sha512-+Pgi+vMuUNkJyExiMBt5IlFoMyKnr5zhJ4Uspz58WOhBF5QoIZkFyNHIbBAtHwzVAgk5RtndVNsDRN61/mmDqg==}
     engines: {node: '>=12'}
-
-  is-regex@1.1.4:
-    resolution: {integrity: sha512-kvRdxDsxZjhzUX07ZnLydzS1TU/TJlTUHHY4YLL87e37oUA49DfkLqgy+VjFocowy29cKvcSiu+kIv728jTTVg==}
-    engines: {node: '>= 0.4'}
 
   is-regex@1.2.1:
     resolution: {integrity: sha512-MjYsKHO5O7mCsmRGxWcLWheFqN9DJ/2TmngvjKXihe6efViPqc274+Fx/4fYj/r03+ESvBdTXK0V6tA3rgez1g==}
@@ -3057,16 +3027,8 @@ packages:
     resolution: {integrity: sha512-LnQR4bZ9IADDRSkvpqMGvt/tEJWclzklNgSw48V5EAaAeDd6qGvN8ei6k5p0tvxSR171VmGyHuTiAOfxAbr8kA==}
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
 
-  is-string@1.0.7:
-    resolution: {integrity: sha512-tE2UXzivje6ofPW7l23cjDOMa09gb7xlAqG6jG5ej6uPV32TlWP3NKPigtaGeHNu9fohccRYvIiZMfOOnOYUtg==}
-    engines: {node: '>= 0.4'}
-
   is-string@1.1.0:
     resolution: {integrity: sha512-PlfzajuF9vSo5wErv3MJAKD/nqf9ngAs1NFQYm16nUYFO2IzxJ2hcm+IOCg+EEopdykNNUhVq5cz35cAUxU8+g==}
-    engines: {node: '>= 0.4'}
-
-  is-symbol@1.0.4:
-    resolution: {integrity: sha512-C/CPBqKWnvdcxqIARxyOh4v1UUEOCHpgDa0WYgpKDFMszcrPcffg5uhwSgPCLD2WWxmq6isisz87tzT01tuGhg==}
     engines: {node: '>= 0.4'}
 
   is-symbol@1.1.1:
@@ -4126,10 +4088,6 @@ packages:
   regenerator-runtime@0.14.1:
     resolution: {integrity: sha512-dYnhHh0nJoMfnkZs6GmmhFknAGRrLznOu5nc9ML+EJxGvrx6H7teuevqVqCuPcPK//3eDrrjQhehXVx9cnkGdw==}
 
-  regexp.prototype.flags@1.5.2:
-    resolution: {integrity: sha512-NcDiDkTLuPR+++OCKB0nWafEmhg/Da8aUPLPMQbK+bxKKCm1/S5he+AqYa4PlMCVBalb4/yxIRub6qkEx5yJbw==}
-    engines: {node: '>= 0.4'}
-
   regexp.prototype.flags@1.5.3:
     resolution: {integrity: sha512-vqlC04+RQoFalODCbCumG2xIOvapzVMHwsyIGM/SIE8fRhFFsXeH8/QQ+s0T0kDAhKc4k30s73/0ydkHQz6HlQ==}
     engines: {node: '>= 0.4'}
@@ -4204,10 +4162,6 @@ packages:
 
   safe-buffer@5.2.1:
     resolution: {integrity: sha512-rp3So07KcdmmKbGvgaNxQSJr7bGVSVk5S9Eq1F+ppbRo70+YeaDxkw5Dd8NPN+GD6bjnYm2VuPuCXmpuYvmCXQ==}
-
-  safe-regex-test@1.0.3:
-    resolution: {integrity: sha512-CdASjNJPvRa7roO6Ra/gLYBTzYzzPyyBXxIMdGW3USQLyjWEls2RgW5UBTXaQVp+OrpeCK3bLem8smtmheoRuw==}
-    engines: {node: '>= 0.4'}
 
   safe-regex-test@1.1.0:
     resolution: {integrity: sha512-x/+Cz4YrimQxQccJf5mKEbIa1NzeCRNI5Ecl/ekmlYaampdNLPalVyIcCZNNH3MvmqBugV5TMYZXv0ljslUlaw==}
@@ -4638,6 +4592,10 @@ packages:
     resolution: {integrity: sha512-8XkAphELsDnEGrDxUOHB3RGvXz6TeuYSGEZBOjtTtPm2lwhGBjLgOzLHB63IUWfBpNucQjND6d3AOudO+H3RWQ==}
     hasBin: true
 
+  uuid@11.1.0:
+    resolution: {integrity: sha512-0/A9rDy9P7cJ+8w1c9WD9V//9Wj15Ce2MPz8Ri6032usz+NfePxx5AcN3bN+r6ZL6jEo066/yNYB3tn4pQEx+A==}
+    hasBin: true
+
   uuid@9.0.1:
     resolution: {integrity: sha512-b+1eJOlsR9K8HJpow9Ok3fiWOWSIcIzXodvv0rQjVoOVNpWMpxf1wZNpt4y9h10odCNrqnYp1OBzRktckBe3sA==}
     hasBin: true
@@ -4688,9 +4646,6 @@ packages:
   whatwg-url@5.0.0:
     resolution: {integrity: sha512-saE57nupxk6v3HY35+jzBwYa0rKSy0XR8JSxZPwgLr7ys0IBzhGviA1/TUGJLmSVqs8pb9AnvICXEuOHLprYTw==}
 
-  which-boxed-primitive@1.0.2:
-    resolution: {integrity: sha512-bwZdv0AKLpplFY2KZRX6TvyuN7ojjr7lwkg6ml0roIy9YeuSr7JS372qlNW18UQYzgYK9ziGcerWqZOmEn9VNg==}
-
   which-boxed-primitive@1.1.0:
     resolution: {integrity: sha512-Ei7Miu/AXe2JJ4iNF5j/UphAgRoma4trE6PtisM09bPygb3egMH3YLW/befsWb1A1AxvNSFidOFTB18XtnIIng==}
     engines: {node: '>= 0.4'}
@@ -4701,10 +4656,6 @@ packages:
 
   which-collection@1.0.2:
     resolution: {integrity: sha512-K4jVyjnBdgvc86Y6BkaLZEN933SwYOuBFkdmBu9ZfkcAbdVbpITnDmjvZ/aQjRXQrv5EPkTnD1s39GiiqbngCw==}
-    engines: {node: '>= 0.4'}
-
-  which-typed-array@1.1.15:
-    resolution: {integrity: sha512-oV0jmFtUky6CXfkqehVvBP/LSWJ2sy4vWMioiENyJLePrBO/yKyV9OyJySfAKosh+RYkIl5zJCNZ8/4JncrpdA==}
     engines: {node: '>= 0.4'}
 
   which-typed-array@1.1.16:
@@ -4779,6 +4730,33 @@ snapshots:
     optionalDependencies:
       graphql: 16.9.0
 
+  '@agentwire/client@0.0.26':
+    dependencies:
+      '@agentwire/core': 0.0.26
+      '@agentwire/encoder': 0.0.26
+      '@agentwire/proto': 0.0.26
+      '@types/uuid': 10.0.0
+      fast-json-patch: 3.1.1
+      rxjs: 7.8.1
+      untruncate-json: 0.0.1
+      uuid: 11.1.0
+      zod: 3.23.8
+
+  '@agentwire/core@0.0.26':
+    dependencies:
+      rxjs: 7.8.1
+      zod: 3.23.8
+
+  '@agentwire/encoder@0.0.26':
+    dependencies:
+      '@agentwire/core': 0.0.26
+      '@agentwire/proto': 0.0.26
+
+  '@agentwire/proto@0.0.26':
+    dependencies:
+      '@agentwire/core': 0.0.26
+      '@bufbuild/protobuf': 2.2.5
+
   '@alloc/quick-lru@5.2.0': {}
 
   '@anthropic-ai/sdk@0.27.3':
@@ -4825,12 +4803,14 @@ snapshots:
       - encoding
       - utf-8-validate
 
+  '@bufbuild/protobuf@2.2.5': {}
+
   '@cfworker/json-schema@4.1.1': {}
 
-  '@copilotkit/react-core@1.8.2(@types/react@19.0.1)(graphql@16.9.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)':
+  '@copilotkit/react-core@1.8.9(@types/react@19.0.1)(graphql@16.9.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)':
     dependencies:
-      '@copilotkit/runtime-client-gql': 1.8.2(graphql@16.9.0)(react@19.0.0)
-      '@copilotkit/shared': 1.8.2
+      '@copilotkit/runtime-client-gql': 1.8.9(graphql@16.9.0)(react@19.0.0)
+      '@copilotkit/shared': 1.8.9
       '@scarf/scarf': 1.3.0
       react: 19.0.0
       react-dom: 19.0.0(react@19.0.0)
@@ -4842,11 +4822,11 @@ snapshots:
       - graphql
       - supports-color
 
-  '@copilotkit/react-ui@1.8.2(@types/react@19.0.1)(graphql@16.9.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)':
+  '@copilotkit/react-ui@1.8.9(@types/react@19.0.1)(graphql@16.9.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)':
     dependencies:
-      '@copilotkit/react-core': 1.8.2(@types/react@19.0.1)(graphql@16.9.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
-      '@copilotkit/runtime-client-gql': 1.8.2(graphql@16.9.0)(react@19.0.0)
-      '@copilotkit/shared': 1.8.2
+      '@copilotkit/react-core': 1.8.9(@types/react@19.0.1)(graphql@16.9.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
+      '@copilotkit/runtime-client-gql': 1.8.9(graphql@16.9.0)(react@19.0.0)
+      '@copilotkit/shared': 1.8.9
       '@headlessui/react': 2.1.3(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       react: 19.0.0
       react-markdown: 8.0.7(@types/react@19.0.1)(react@19.0.0)
@@ -4860,9 +4840,9 @@ snapshots:
       - react-dom
       - supports-color
 
-  '@copilotkit/runtime-client-gql@1.8.2(graphql@16.9.0)(react@19.0.0)':
+  '@copilotkit/runtime-client-gql@1.8.9(graphql@16.9.0)(react@19.0.0)':
     dependencies:
-      '@copilotkit/shared': 1.8.2
+      '@copilotkit/shared': 1.8.9
       '@urql/core': 5.0.6(graphql@16.9.0)
       react: 19.0.0
       untruncate-json: 0.0.1
@@ -4871,10 +4851,14 @@ snapshots:
       - encoding
       - graphql
 
-  '@copilotkit/runtime@1.8.2(@browserbasehq/sdk@2.2.0)(@browserbasehq/stagehand@1.12.0(@playwright/test@1.50.1)(deepmerge@4.3.1)(dotenv@16.4.7)(openai@4.70.2(zod@3.23.8))(zod@3.23.8))(@ibm-cloud/watsonx-ai@1.5.0(@langchain/core@0.3.39(openai@4.86.1(ws@8.18.0)(zod@3.23.8))))(axios@1.7.9)(google-auth-library@8.9.0)(ibm-cloud-sdk-core@5.1.2)(ignore@5.3.2)(jsonwebtoken@9.0.2)(playwright@1.50.1)(ws@8.18.0)':
+  '@copilotkit/runtime@1.8.9(@browserbasehq/sdk@2.2.0)(@browserbasehq/stagehand@1.12.0(@playwright/test@1.50.1)(deepmerge@4.3.1)(dotenv@16.4.7)(openai@4.70.2(zod@3.23.8))(zod@3.23.8))(@ibm-cloud/watsonx-ai@1.5.0(@langchain/core@0.3.39(openai@4.86.1(ws@8.18.0)(zod@3.23.8))))(axios@1.7.9)(google-auth-library@8.9.0)(ibm-cloud-sdk-core@5.1.2)(ignore@5.3.2)(jsonwebtoken@9.0.2)(playwright@1.50.1)(ws@8.18.0)':
     dependencies:
+      '@agentwire/client': 0.0.26
+      '@agentwire/core': 0.0.26
+      '@agentwire/encoder': 0.0.26
+      '@agentwire/proto': 0.0.26
       '@anthropic-ai/sdk': 0.27.3
-      '@copilotkit/shared': 1.8.2
+      '@copilotkit/shared': 1.8.9
       '@graphql-yoga/plugin-defer-stream': 3.7.0(graphql-yoga@5.7.0(graphql@16.9.0))(graphql@16.9.0)
       '@langchain/community': 0.3.29(@browserbasehq/sdk@2.2.0)(@browserbasehq/stagehand@1.12.0(@playwright/test@1.50.1)(deepmerge@4.3.1)(dotenv@16.4.7)(openai@4.70.2(zod@3.23.8))(zod@3.23.8))(@ibm-cloud/watsonx-ai@1.5.0(@langchain/core@0.3.39(openai@4.86.1(ws@8.18.0)(zod@3.23.8))))(@langchain/core@0.3.39(openai@4.86.1(ws@8.18.0)(zod@3.23.8)))(axios@1.7.9)(google-auth-library@8.9.0)(ibm-cloud-sdk-core@5.1.2)(ignore@5.3.2)(jsonwebtoken@9.0.2)(openai@4.86.1(ws@8.18.0)(zod@3.23.8))(playwright@1.50.1)(ws@8.18.0)
       '@langchain/core': 0.3.39(openai@4.70.2(zod@3.23.8))
@@ -5036,7 +5020,7 @@ snapshots:
       - ws
       - youtubei.js
 
-  '@copilotkit/shared@1.8.2':
+  '@copilotkit/shared@1.8.9':
     dependencies:
       '@segment/analytics-node': 2.1.2
       chalk: 4.1.2
@@ -5065,8 +5049,6 @@ snapshots:
     dependencies:
       eslint: 9.16.0(jiti@1.21.6)
       eslint-visitor-keys: 3.4.3
-
-  '@eslint-community/regexpp@4.11.0': {}
 
   '@eslint-community/regexpp@4.12.1': {}
 
@@ -5436,7 +5418,7 @@ snapshots:
 
   '@next/env@15.1.0': {}
 
-  '@next/eslint-plugin-next@15.1.0':
+  '@next/eslint-plugin-next@15.3.1':
     dependencies:
       fast-glob: 3.3.1
 
@@ -6244,7 +6226,7 @@ snapshots:
 
   '@typescript-eslint/eslint-plugin@8.18.0(@typescript-eslint/parser@7.2.0(eslint@9.16.0(jiti@1.21.6))(typescript@5.5.4))(eslint@9.16.0(jiti@1.21.6))(typescript@5.5.4)':
     dependencies:
-      '@eslint-community/regexpp': 4.11.0
+      '@eslint-community/regexpp': 4.12.1
       '@typescript-eslint/parser': 7.2.0(eslint@9.16.0(jiti@1.21.6))(typescript@5.5.4)
       '@typescript-eslint/scope-manager': 8.18.0
       '@typescript-eslint/type-utils': 8.18.0(eslint@9.16.0(jiti@1.21.6))(typescript@5.5.4)
@@ -6440,70 +6422,70 @@ snapshots:
 
   array-buffer-byte-length@1.0.1:
     dependencies:
-      call-bind: 1.0.7
+      call-bind: 1.0.8
       is-array-buffer: 3.0.4
 
   array-flatten@1.1.1: {}
 
   array-includes@3.1.8:
     dependencies:
-      call-bind: 1.0.7
+      call-bind: 1.0.8
       define-properties: 1.2.1
-      es-abstract: 1.23.3
+      es-abstract: 1.23.5
       es-object-atoms: 1.0.0
-      get-intrinsic: 1.2.4
-      is-string: 1.0.7
+      get-intrinsic: 1.2.6
+      is-string: 1.1.0
 
   array-union@2.1.0: {}
 
   array.prototype.findlast@1.2.5:
     dependencies:
-      call-bind: 1.0.7
+      call-bind: 1.0.8
       define-properties: 1.2.1
-      es-abstract: 1.23.3
+      es-abstract: 1.23.5
       es-errors: 1.3.0
       es-object-atoms: 1.0.0
       es-shim-unscopables: 1.0.2
 
   array.prototype.findlastindex@1.2.5:
     dependencies:
-      call-bind: 1.0.7
+      call-bind: 1.0.8
       define-properties: 1.2.1
-      es-abstract: 1.23.3
+      es-abstract: 1.23.5
       es-errors: 1.3.0
       es-object-atoms: 1.0.0
       es-shim-unscopables: 1.0.2
 
   array.prototype.flat@1.3.2:
     dependencies:
-      call-bind: 1.0.7
+      call-bind: 1.0.8
       define-properties: 1.2.1
-      es-abstract: 1.23.3
+      es-abstract: 1.23.5
       es-shim-unscopables: 1.0.2
 
   array.prototype.flatmap@1.3.2:
     dependencies:
-      call-bind: 1.0.7
+      call-bind: 1.0.8
       define-properties: 1.2.1
-      es-abstract: 1.23.3
+      es-abstract: 1.23.5
       es-shim-unscopables: 1.0.2
 
   array.prototype.tosorted@1.1.4:
     dependencies:
-      call-bind: 1.0.7
+      call-bind: 1.0.8
       define-properties: 1.2.1
-      es-abstract: 1.23.3
+      es-abstract: 1.23.5
       es-errors: 1.3.0
       es-shim-unscopables: 1.0.2
 
   arraybuffer.prototype.slice@1.0.3:
     dependencies:
       array-buffer-byte-length: 1.0.1
-      call-bind: 1.0.7
+      call-bind: 1.0.8
       define-properties: 1.2.1
-      es-abstract: 1.23.3
+      es-abstract: 1.23.5
       es-errors: 1.3.0
-      get-intrinsic: 1.2.4
+      get-intrinsic: 1.2.6
       is-array-buffer: 3.0.4
       is-shared-array-buffer: 1.0.3
 
@@ -6606,7 +6588,7 @@ snapshots:
   call-bind@1.0.8:
     dependencies:
       call-bind-apply-helpers: 1.0.1
-      es-define-property: 1.0.0
+      es-define-property: 1.0.1
       get-intrinsic: 1.2.6
       set-function-length: 1.2.2
 
@@ -6760,19 +6742,19 @@ snapshots:
 
   data-view-buffer@1.0.1:
     dependencies:
-      call-bind: 1.0.7
+      call-bind: 1.0.8
       es-errors: 1.3.0
       is-data-view: 1.0.1
 
   data-view-byte-length@1.0.1:
     dependencies:
-      call-bind: 1.0.7
+      call-bind: 1.0.8
       es-errors: 1.3.0
       is-data-view: 1.0.1
 
   data-view-byte-offset@1.0.0:
     dependencies:
-      call-bind: 1.0.7
+      call-bind: 1.0.8
       es-errors: 1.3.0
       is-data-view: 1.0.1
 
@@ -6880,55 +6862,6 @@ snapshots:
       graceful-fs: 4.2.11
       tapable: 2.2.1
 
-  es-abstract@1.23.3:
-    dependencies:
-      array-buffer-byte-length: 1.0.1
-      arraybuffer.prototype.slice: 1.0.3
-      available-typed-arrays: 1.0.7
-      call-bind: 1.0.7
-      data-view-buffer: 1.0.1
-      data-view-byte-length: 1.0.1
-      data-view-byte-offset: 1.0.0
-      es-define-property: 1.0.0
-      es-errors: 1.3.0
-      es-object-atoms: 1.0.0
-      es-set-tostringtag: 2.0.3
-      es-to-primitive: 1.2.1
-      function.prototype.name: 1.1.6
-      get-intrinsic: 1.2.4
-      get-symbol-description: 1.0.2
-      globalthis: 1.0.4
-      gopd: 1.0.1
-      has-property-descriptors: 1.0.2
-      has-proto: 1.0.3
-      has-symbols: 1.0.3
-      hasown: 2.0.2
-      internal-slot: 1.0.7
-      is-array-buffer: 3.0.4
-      is-callable: 1.2.7
-      is-data-view: 1.0.1
-      is-negative-zero: 2.0.3
-      is-regex: 1.1.4
-      is-shared-array-buffer: 1.0.3
-      is-string: 1.0.7
-      is-typed-array: 1.1.13
-      is-weakref: 1.0.2
-      object-inspect: 1.13.2
-      object-keys: 1.1.1
-      object.assign: 4.1.5
-      regexp.prototype.flags: 1.5.2
-      safe-array-concat: 1.1.2
-      safe-regex-test: 1.0.3
-      string.prototype.trim: 1.2.9
-      string.prototype.trimend: 1.0.8
-      string.prototype.trimstart: 1.0.8
-      typed-array-buffer: 1.0.2
-      typed-array-byte-length: 1.0.1
-      typed-array-byte-offset: 1.0.2
-      typed-array-length: 1.0.6
-      unbox-primitive: 1.0.2
-      which-typed-array: 1.1.15
-
   es-abstract@1.23.5:
     dependencies:
       array-buffer-byte-length: 1.0.1
@@ -6938,7 +6871,7 @@ snapshots:
       data-view-buffer: 1.0.1
       data-view-byte-length: 1.0.1
       data-view-byte-offset: 1.0.0
-      es-define-property: 1.0.0
+      es-define-property: 1.0.1
       es-errors: 1.3.0
       es-object-atoms: 1.0.0
       es-set-tostringtag: 2.0.3
@@ -6957,9 +6890,9 @@ snapshots:
       is-callable: 1.2.7
       is-data-view: 1.0.1
       is-negative-zero: 2.0.3
-      is-regex: 1.1.4
+      is-regex: 1.2.1
       is-shared-array-buffer: 1.0.3
-      is-string: 1.0.7
+      is-string: 1.1.0
       is-typed-array: 1.1.13
       is-weakref: 1.0.2
       object-inspect: 1.13.3
@@ -6967,7 +6900,7 @@ snapshots:
       object.assign: 4.1.5
       regexp.prototype.flags: 1.5.3
       safe-array-concat: 1.1.2
-      safe-regex-test: 1.0.3
+      safe-regex-test: 1.1.0
       string.prototype.trim: 1.2.9
       string.prototype.trimend: 1.0.8
       string.prototype.trimstart: 1.0.8
@@ -6976,7 +6909,7 @@ snapshots:
       typed-array-byte-offset: 1.0.2
       typed-array-length: 1.0.6
       unbox-primitive: 1.0.2
-      which-typed-array: 1.1.15
+      which-typed-array: 1.1.16
 
   es-define-property@1.0.0:
     dependencies:
@@ -6988,18 +6921,18 @@ snapshots:
 
   es-iterator-helpers@1.2.0:
     dependencies:
-      call-bind: 1.0.7
+      call-bind: 1.0.8
       define-properties: 1.2.1
-      es-abstract: 1.23.3
+      es-abstract: 1.23.5
       es-errors: 1.3.0
       es-set-tostringtag: 2.0.3
       function-bind: 1.1.2
-      get-intrinsic: 1.2.4
+      get-intrinsic: 1.2.6
       globalthis: 1.0.4
-      gopd: 1.0.1
+      gopd: 1.2.0
       has-property-descriptors: 1.0.2
       has-proto: 1.0.3
-      has-symbols: 1.0.3
+      has-symbols: 1.1.0
       internal-slot: 1.0.7
       iterator.prototype: 1.1.4
       safe-array-concat: 1.1.2
@@ -7010,7 +6943,7 @@ snapshots:
 
   es-set-tostringtag@2.0.3:
     dependencies:
-      get-intrinsic: 1.2.4
+      get-intrinsic: 1.2.6
       has-tostringtag: 1.0.2
       hasown: 2.0.2
 
@@ -7021,8 +6954,8 @@ snapshots:
   es-to-primitive@1.2.1:
     dependencies:
       is-callable: 1.2.7
-      is-date-object: 1.0.5
-      is-symbol: 1.0.4
+      is-date-object: 1.1.0
+      is-symbol: 1.1.1
 
   escape-html@1.0.3: {}
 
@@ -7030,9 +6963,9 @@ snapshots:
 
   escape-string-regexp@5.0.0: {}
 
-  eslint-config-next@15.1.0(eslint@9.16.0(jiti@1.21.6))(typescript@5.5.4):
+  eslint-config-next@15.3.1(eslint@9.16.0(jiti@1.21.6))(typescript@5.5.4):
     dependencies:
-      '@next/eslint-plugin-next': 15.1.0
+      '@next/eslint-plugin-next': 15.3.1
       '@rushstack/eslint-patch': 1.10.4
       '@typescript-eslint/eslint-plugin': 8.18.0(@typescript-eslint/parser@7.2.0(eslint@9.16.0(jiti@1.21.6))(typescript@5.5.4))(eslint@9.16.0(jiti@1.21.6))(typescript@5.5.4)
       '@typescript-eslint/parser': 7.2.0(eslint@9.16.0(jiti@1.21.6))(typescript@5.5.4)
@@ -7064,7 +6997,7 @@ snapshots:
       debug: 4.3.6
       enhanced-resolve: 5.17.1
       eslint: 9.16.0(jiti@1.21.6)
-      eslint-module-utils: 2.8.2(@typescript-eslint/parser@7.2.0(eslint@9.16.0(jiti@1.21.6))(typescript@5.5.4))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.6.3)(eslint@9.16.0(jiti@1.21.6))
+      eslint-module-utils: 2.12.0(@typescript-eslint/parser@7.2.0(eslint@9.16.0(jiti@1.21.6))(typescript@5.5.4))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.6.3)(eslint@9.16.0(jiti@1.21.6))
       fast-glob: 3.3.2
       get-tsconfig: 4.7.6
       is-bun-module: 1.1.0
@@ -7078,17 +7011,6 @@ snapshots:
       - supports-color
 
   eslint-module-utils@2.12.0(@typescript-eslint/parser@7.2.0(eslint@9.16.0(jiti@1.21.6))(typescript@5.5.4))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.6.3)(eslint@9.16.0(jiti@1.21.6)):
-    dependencies:
-      debug: 3.2.7
-    optionalDependencies:
-      '@typescript-eslint/parser': 7.2.0(eslint@9.16.0(jiti@1.21.6))(typescript@5.5.4)
-      eslint: 9.16.0(jiti@1.21.6)
-      eslint-import-resolver-node: 0.3.9
-      eslint-import-resolver-typescript: 3.6.3(@typescript-eslint/parser@7.2.0(eslint@9.16.0(jiti@1.21.6))(typescript@5.5.4))(eslint-import-resolver-node@0.3.9)(eslint-plugin-import@2.31.0)(eslint@9.16.0(jiti@1.21.6))
-    transitivePeerDependencies:
-      - supports-color
-
-  eslint-module-utils@2.8.2(@typescript-eslint/parser@7.2.0(eslint@9.16.0(jiti@1.21.6))(typescript@5.5.4))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.6.3)(eslint@9.16.0(jiti@1.21.6)):
     dependencies:
       debug: 3.2.7
     optionalDependencies:
@@ -7144,7 +7066,7 @@ snapshots:
       language-tags: 1.0.9
       minimatch: 3.1.2
       object.fromentries: 2.0.8
-      safe-regex-test: 1.0.3
+      safe-regex-test: 1.1.0
       string.prototype.includes: 2.0.1
 
   eslint-plugin-react-hooks@5.1.0(eslint@9.16.0(jiti@1.21.6)):
@@ -7325,6 +7247,8 @@ snapshots:
       merge2: 1.4.1
       micromatch: 4.0.8
 
+  fast-json-patch@3.1.1: {}
+
   fast-json-stable-stringify@2.1.0: {}
 
   fast-levenshtein@2.0.6: {}
@@ -7451,9 +7375,9 @@ snapshots:
 
   function.prototype.name@1.1.6:
     dependencies:
-      call-bind: 1.0.7
+      call-bind: 1.0.8
       define-properties: 1.2.1
-      es-abstract: 1.23.3
+      es-abstract: 1.23.5
       functions-have-names: 1.2.3
 
   functions-have-names@1.2.3: {}
@@ -7503,9 +7427,9 @@ snapshots:
 
   get-symbol-description@1.0.2:
     dependencies:
-      call-bind: 1.0.7
+      call-bind: 1.0.8
       es-errors: 1.3.0
-      get-intrinsic: 1.2.4
+      get-intrinsic: 1.2.6
 
   get-tsconfig@4.7.6:
     dependencies:
@@ -7533,7 +7457,7 @@ snapshots:
   globalthis@1.0.4:
     dependencies:
       define-properties: 1.2.1
-      gopd: 1.0.1
+      gopd: 1.2.0
 
   globby@11.1.0:
     dependencies:
@@ -7638,7 +7562,7 @@ snapshots:
 
   has-tostringtag@1.0.2:
     dependencies:
-      has-symbols: 1.0.3
+      has-symbols: 1.1.0
 
   hasown@2.0.2:
     dependencies:
@@ -7772,8 +7696,8 @@ snapshots:
 
   is-array-buffer@3.0.4:
     dependencies:
-      call-bind: 1.0.7
-      get-intrinsic: 1.2.4
+      call-bind: 1.0.8
+      get-intrinsic: 1.2.6
 
   is-arrayish@0.3.2:
     optional: true
@@ -7782,10 +7706,6 @@ snapshots:
     dependencies:
       has-tostringtag: 1.0.2
 
-  is-bigint@1.0.4:
-    dependencies:
-      has-bigints: 1.0.2
-
   is-bigint@1.1.0:
     dependencies:
       has-bigints: 1.0.2
@@ -7793,11 +7713,6 @@ snapshots:
   is-binary-path@2.1.0:
     dependencies:
       binary-extensions: 2.3.0
-
-  is-boolean-object@1.1.2:
-    dependencies:
-      call-bind: 1.0.7
-      has-tostringtag: 1.0.2
 
   is-boolean-object@1.2.1:
     dependencies:
@@ -7819,10 +7734,6 @@ snapshots:
   is-data-view@1.0.1:
     dependencies:
       is-typed-array: 1.1.13
-
-  is-date-object@1.0.5:
-    dependencies:
-      has-tostringtag: 1.0.2
 
   is-date-object@1.1.0:
     dependencies:
@@ -7859,10 +7770,6 @@ snapshots:
 
   is-negative-zero@2.0.3: {}
 
-  is-number-object@1.0.7:
-    dependencies:
-      has-tostringtag: 1.0.2
-
   is-number-object@1.1.0:
     dependencies:
       call-bind: 1.0.8
@@ -7871,11 +7778,6 @@ snapshots:
   is-number@7.0.0: {}
 
   is-plain-obj@4.1.0: {}
-
-  is-regex@1.1.4:
-    dependencies:
-      call-bind: 1.0.7
-      has-tostringtag: 1.0.2
 
   is-regex@1.2.1:
     dependencies:
@@ -7888,24 +7790,16 @@ snapshots:
 
   is-shared-array-buffer@1.0.3:
     dependencies:
-      call-bind: 1.0.7
+      call-bind: 1.0.8
 
   is-stream@2.0.1: {}
 
   is-stream@3.0.0: {}
 
-  is-string@1.0.7:
-    dependencies:
-      has-tostringtag: 1.0.2
-
   is-string@1.1.0:
     dependencies:
       call-bind: 1.0.8
       has-tostringtag: 1.0.2
-
-  is-symbol@1.0.4:
-    dependencies:
-      has-symbols: 1.0.3
 
   is-symbol@1.1.1:
     dependencies:
@@ -7915,7 +7809,7 @@ snapshots:
 
   is-typed-array@1.1.13:
     dependencies:
-      which-typed-array: 1.1.15
+      which-typed-array: 1.1.16
 
   is-unicode-supported@1.3.0: {}
 
@@ -7923,7 +7817,7 @@ snapshots:
 
   is-weakref@1.0.2:
     dependencies:
-      call-bind: 1.0.7
+      call-bind: 1.0.8
 
   is-weakset@2.0.3:
     dependencies:
@@ -8829,33 +8723,33 @@ snapshots:
 
   object.assign@4.1.5:
     dependencies:
-      call-bind: 1.0.7
+      call-bind: 1.0.8
       define-properties: 1.2.1
-      has-symbols: 1.0.3
+      has-symbols: 1.1.0
       object-keys: 1.1.1
 
   object.entries@1.1.8:
     dependencies:
-      call-bind: 1.0.7
+      call-bind: 1.0.8
       define-properties: 1.2.1
       es-object-atoms: 1.0.0
 
   object.fromentries@2.0.8:
     dependencies:
-      call-bind: 1.0.7
+      call-bind: 1.0.8
       define-properties: 1.2.1
-      es-abstract: 1.23.3
+      es-abstract: 1.23.5
       es-object-atoms: 1.0.0
 
   object.groupby@1.0.3:
     dependencies:
-      call-bind: 1.0.7
+      call-bind: 1.0.8
       define-properties: 1.2.1
-      es-abstract: 1.23.3
+      es-abstract: 1.23.5
 
   object.values@1.2.0:
     dependencies:
-      call-bind: 1.0.7
+      call-bind: 1.0.8
       define-properties: 1.2.1
       es-object-atoms: 1.0.0
 
@@ -9306,13 +9200,6 @@ snapshots:
 
   regenerator-runtime@0.14.1: {}
 
-  regexp.prototype.flags@1.5.2:
-    dependencies:
-      call-bind: 1.0.7
-      define-properties: 1.2.1
-      es-errors: 1.3.0
-      set-function-name: 2.0.2
-
   regexp.prototype.flags@1.5.3:
     dependencies:
       call-bind: 1.0.8
@@ -9413,18 +9300,12 @@ snapshots:
 
   safe-array-concat@1.1.2:
     dependencies:
-      call-bind: 1.0.7
-      get-intrinsic: 1.2.4
-      has-symbols: 1.0.3
+      call-bind: 1.0.8
+      get-intrinsic: 1.2.6
+      has-symbols: 1.1.0
       isarray: 2.0.5
 
   safe-buffer@5.2.1: {}
-
-  safe-regex-test@1.0.3:
-    dependencies:
-      call-bind: 1.0.7
-      es-errors: 1.3.0
-      is-regex: 1.1.4
 
   safe-regex-test@1.1.0:
     dependencies:
@@ -9578,46 +9459,46 @@ snapshots:
 
   string.prototype.includes@2.0.1:
     dependencies:
-      call-bind: 1.0.7
+      call-bind: 1.0.8
       define-properties: 1.2.1
-      es-abstract: 1.23.3
+      es-abstract: 1.23.5
 
   string.prototype.matchall@4.0.11:
     dependencies:
-      call-bind: 1.0.7
+      call-bind: 1.0.8
       define-properties: 1.2.1
-      es-abstract: 1.23.3
+      es-abstract: 1.23.5
       es-errors: 1.3.0
       es-object-atoms: 1.0.0
-      get-intrinsic: 1.2.4
-      gopd: 1.0.1
-      has-symbols: 1.0.3
+      get-intrinsic: 1.2.6
+      gopd: 1.2.0
+      has-symbols: 1.1.0
       internal-slot: 1.0.7
-      regexp.prototype.flags: 1.5.2
+      regexp.prototype.flags: 1.5.3
       set-function-name: 2.0.2
       side-channel: 1.0.6
 
   string.prototype.repeat@1.0.0:
     dependencies:
       define-properties: 1.2.1
-      es-abstract: 1.23.3
+      es-abstract: 1.23.5
 
   string.prototype.trim@1.2.9:
     dependencies:
-      call-bind: 1.0.7
+      call-bind: 1.0.8
       define-properties: 1.2.1
-      es-abstract: 1.23.3
+      es-abstract: 1.23.5
       es-object-atoms: 1.0.0
 
   string.prototype.trimend@1.0.8:
     dependencies:
-      call-bind: 1.0.7
+      call-bind: 1.0.8
       define-properties: 1.2.1
       es-object-atoms: 1.0.0
 
   string.prototype.trimstart@1.0.8:
     dependencies:
-      call-bind: 1.0.7
+      call-bind: 1.0.8
       define-properties: 1.2.1
       es-object-atoms: 1.0.0
 
@@ -9792,32 +9673,32 @@ snapshots:
 
   typed-array-buffer@1.0.2:
     dependencies:
-      call-bind: 1.0.7
+      call-bind: 1.0.8
       es-errors: 1.3.0
       is-typed-array: 1.1.13
 
   typed-array-byte-length@1.0.1:
     dependencies:
-      call-bind: 1.0.7
+      call-bind: 1.0.8
       for-each: 0.3.3
-      gopd: 1.0.1
+      gopd: 1.2.0
       has-proto: 1.0.3
       is-typed-array: 1.1.13
 
   typed-array-byte-offset@1.0.2:
     dependencies:
       available-typed-arrays: 1.0.7
-      call-bind: 1.0.7
+      call-bind: 1.0.8
       for-each: 0.3.3
-      gopd: 1.0.1
+      gopd: 1.2.0
       has-proto: 1.0.3
       is-typed-array: 1.1.13
 
   typed-array-length@1.0.6:
     dependencies:
-      call-bind: 1.0.7
+      call-bind: 1.0.8
       for-each: 0.3.3
-      gopd: 1.0.1
+      gopd: 1.2.0
       has-proto: 1.0.3
       is-typed-array: 1.1.13
       possible-typed-array-names: 1.0.0
@@ -9826,10 +9707,10 @@ snapshots:
 
   unbox-primitive@1.0.2:
     dependencies:
-      call-bind: 1.0.7
+      call-bind: 1.0.8
       has-bigints: 1.0.2
-      has-symbols: 1.0.3
-      which-boxed-primitive: 1.0.2
+      has-symbols: 1.1.0
+      which-boxed-primitive: 1.1.0
 
   undici-types@5.26.5: {}
 
@@ -9953,6 +9834,8 @@ snapshots:
 
   uuid@10.0.0: {}
 
+  uuid@11.1.0: {}
+
   uuid@9.0.1: {}
 
   uvu@0.5.6:
@@ -10005,14 +9888,6 @@ snapshots:
       tr46: 0.0.3
       webidl-conversions: 3.0.1
 
-  which-boxed-primitive@1.0.2:
-    dependencies:
-      is-bigint: 1.0.4
-      is-boolean-object: 1.1.2
-      is-number-object: 1.0.7
-      is-string: 1.0.7
-      is-symbol: 1.0.4
-
   which-boxed-primitive@1.1.0:
     dependencies:
       is-bigint: 1.1.0
@@ -10043,14 +9918,6 @@ snapshots:
       is-set: 2.0.3
       is-weakmap: 2.0.2
       is-weakset: 2.0.3
-
-  which-typed-array@1.1.15:
-    dependencies:
-      available-typed-arrays: 1.0.7
-      call-bind: 1.0.7
-      for-each: 0.3.3
-      gopd: 1.0.1
-      has-tostringtag: 1.0.2
 
   which-typed-array@1.1.16:
     dependencies:

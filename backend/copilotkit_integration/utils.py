@@ -249,7 +249,6 @@ def agno_messages_to_copilotkit(agno_messages: Sequence[AgnoMessage]) -> List[Co
 
 
 # --- Event Mapping ---
-# (map_agno_chunk_to_copilotkit_protocol_events remains the same)
 def map_agno_chunk_to_copilotkit_protocol_events(
     chunk: AgnoRunResponse,
     is_frontend_action: bool = False,
@@ -265,7 +264,7 @@ def map_agno_chunk_to_copilotkit_protocol_events(
         events.append(TextMessageContent(type=RuntimeEventTypes.TEXT_MESSAGE_CONTENT, messageId="PLACEHOLDER_ID", content=str(chunk.content))) # type: ignore
 
     # 2. Handle Tool Calls
-    if chunk.tools:
+    if chunk.event in [AgnoRunEvent.tool_call_started.value, AgnoRunEvent.tool_call_completed.value] and chunk.tools:
         for tool_call in chunk.tools:
             tool_call_id = tool_call.get("tool_call_id", str(uuid.uuid4()))
             tool_name = tool_call.get("tool_name", "unknown_tool")

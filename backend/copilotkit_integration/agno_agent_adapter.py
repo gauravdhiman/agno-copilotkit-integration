@@ -228,11 +228,11 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
             if last_user_message is None:
                 raise ValueError("No user message found.")
 
-            self.agno_agent.session_id = thread_id
-            self.agno_agent.user_id = user_id # Set user_id on the agent
+            # self.agno_agent.session_id = thread_id
+            # self.agno_agent.user_id = user_id # Set user_id on the agent
             # If session info is persistent, first load it
-            if self.agno_agent.storage:
-                self.agno_agent.load_session()
+            # if self.agno_agent.storage:
+            #     self.agno_agent.load_session()
 
             # --- Initial State Update and Run Start ---
             self.update_copilot_agno_state() # Update state BEFORE RunStarted
@@ -472,6 +472,8 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
             # Persist final state if storage is configured
             if self.agno_agent.storage:
                  try:
+                    thread_id = self.agno_agent.session_id or thread_id
+                    user_id = self.agno_agent.user_id or user_id
                     self.agno_agent.write_to_storage(session_id=thread_id, user_id=user_id)
                     log_debug(f"[Copilotkit-Agno][{agent_name}] Final state saved for thread {thread_id}.")
                  except Exception as save_err:
@@ -604,5 +606,5 @@ class AgnoAgentAdapter(CopilotKitAgentBase):
     def dict_repr(self) -> Dict[str, Any]:
         """Returns a dictionary representation of the adapter, including its type."""
         base = super().dict_repr()
-        base['type'] = 'agno' # Indicate the adapter type
+        base['type'] = 'agno'
         return base

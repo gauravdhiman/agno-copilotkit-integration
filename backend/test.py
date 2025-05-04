@@ -4,6 +4,7 @@ load_dotenv()
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 from agno.models.google import Gemini
+# from agno.models.meta import Llama
 from agno.tools.googlesearch import GoogleSearchTools
 from agno.tools.yfinance import YFinanceTools
 from agno.tools.crawl4ai import Crawl4aiTools
@@ -19,6 +20,7 @@ sample_agent = Agent(
     description="You are a helpful assistant who can search web, crawl page contents and also search financial information using given tools to achieve the given user goal.",
     # model=OpenAIChat(id="gpt-4o-mini"),
     model=Gemini(id="gemini-2.5-flash-preview-04-17"),  # or any other supported model
+    # model=Llama(id="Llama-4-Maverick-17B-128E-Instruct-FP8"),
     instructions=[
         "If user input is not sufficent, ask user relevant questions / clarifications",
         "To search the web, use google search tool.",
