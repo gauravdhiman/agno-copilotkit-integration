@@ -1,8 +1,8 @@
 // ui/app/test/page.tsx
 "use client"; // Required for hooks
 
-import React, { useMemo, useState } from "react";
-import { useCopilotAction, useCopilotChat, useCoAgentStateRender } from "@copilotkit/react-core";
+import React, { useMemo, useState, useEffect } from "react";
+import { useCopilotAction, useCopilotChat, useCoAgentStateRender, useCopilotContext } from "@copilotkit/react-core";
 import { CopilotSidebar } from "@copilotkit/react-ui"; // Import the sidebar
 import { Message } from "@copilotkit/runtime-client-gql"; // Import base Message type
 import {
@@ -33,12 +33,14 @@ export default function TestAndChatPage() {
   // This hook connects to the state managed by the <CopilotKit> provider
   // which is also used by the <CopilotSidebar>
   const { visibleMessages, isLoading } = useCopilotChat();
+  const [backgroundColor, setBackgroundColor] = useState("#ADD8E6"); // Default light blue background
+  const { actions } = useCopilotContext();
 
   // --- Action: Greet User ---
   // This action primarily renders UI in the frontend chat window.
   useCopilotAction({
     name: "greetUser",
-    available: "frontend", // Executes in the frontend
+    // available: "frontend", // Executes in the frontend
     description: "Displays a greeting message to the user in the chat.",
     parameters: [
       {
@@ -105,7 +107,6 @@ export default function TestAndChatPage() {
 
   // --- Action: Display tool details on UI ---
   // This action primarily renders UI in the frontend chat window.
-    // --- Action: Display Tool Call Details ---
     useCopilotAction({
       name: "display_tool_call_details",
       description: "Displays the details and results of a completed tool call in the chat.",
@@ -118,6 +119,12 @@ export default function TestAndChatPage() {
         { name: "tool_result", type: "string", description: "Result / outcome of tool call", required: true },
       ],
       render: ({ args, status }) => {
+        // If no result, return empty fragment
+        if (!args?.tool_result) {
+          return (
+            <>  </>
+          )
+        }
         // Only render when the action execution is fully complete
         if (status === "complete") {
           let parsedArgs: any = null;
@@ -184,6 +191,64 @@ export default function TestAndChatPage() {
       },
     });
   // --- End of Action Hook to display Tool calling details
+
+// --- Action: Set Background Color ---
+   // This action has a handler that executes in the frontend to change component state.
+  useCopilotAction({
+    name: "setBackgroundColor",
+    available: "frontend",
+    description: "This action changes the background color of the main page area to given color hexcode.",
+    parameters: [
+      {
+        name: "backgroundColor",
+        type: "string",
+        description: "The background color hex value to set (e.g., '#FF0000'). ALWAYS provide a hex code code, not the color name in natural language.",
+        required: true,
+      },
+    ],
+    // Handler function executed in the browser
+    handler: async ({ backgroundColor }) => {
+       console.log(`Frontend Action "setBackgroundColor": Setting background to ${backgroundColor}`);
+       setBackgroundColor(backgroundColor);
+       // Optionally return a string confirmation, though it might not be automatically displayed
+       return `Background color set to ${backgroundColor}`;
+    },
+     // Optional render function to show status in chat
+     render: ({ status, args }) => {
+      if (status === "executing") {
+         return <div className="text-md italic text-gray-600 p-2">Applying color ...</div>;
+       }
+       if (status === "complete") {
+        return <div className="text-md bg-green-100 text-green-800 p-2 rounded-lg my-2">Background set to {args.backgroundColor}!</div>;
+       }
+       return <></>; // Return empty fragment otherwise
+     }
+  });
+
+  useEffect(() => {
+    if (actions) {
+      const registeredAction = actions["setBackgroundColor"];
+      console.log("--- Verifying Action Registration ---");
+      console.log("--- All Actions ---", actions);
+      if (registeredAction) {
+        console.log("Action 'setBackgroundColor' found in context registry:");
+        console.log("  Name:", registeredAction.name);
+        console.log("  Available:", registeredAction.available); // Should be "frontend"
+        console.log("  Description:", registeredAction.description);
+        console.log("  Parameters:", registeredAction.parameters);
+        console.log("  Handler function exists:", typeof registeredAction.handler === 'function');
+        console.log("  Render function exists:", typeof registeredAction.render === 'function');
+        // You could even try comparing the handler reference if needed, though it's tricky
+        // console.log("  Is Handler the one defined above?", registeredAction.handler === handleSetBackground);
+      } else {
+        console.log("Action 'setBackgroundColor' NOT FOUND in context registry!");
+      }
+      console.log("------------------------------------");
+    } else {
+      console.warn("CopilotContext or actions registry not available yet.");
+    }
+    // Run this effect only once on mount, or when context potentially changes
+  }, [actions]);
 
   // --- Agent State Renderer Hook ---
   // This hook listens for AgentStateMessages from the specified agent
@@ -302,7 +367,7 @@ export default function TestAndChatPage() {
 
   return (
     // Main container for the page content
-    <main className="flex flex-col h-screen p-4 md:p-8 bg-gray-100">
+    <main style={{ backgroundColor, transition: 'background-color 0.5s ease' }} className="flex flex-col h-screen p-4 md:p-8 bg-gray-100">
       {/* Page Title and Description */}
       <div className="mb-4">
         <h1 className="text-2xl md:text-3xl font-bold mb-2 text-gray-800">Chat & Debug Page</h1>

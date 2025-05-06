@@ -265,17 +265,22 @@ def map_agno_chunk_to_copilotkit_protocol_events(
 
     # 2. Handle Tool Calls
     if chunk.event in [AgnoRunEvent.tool_call_started.value, AgnoRunEvent.tool_call_completed.value] and chunk.tools:
+        print(f"\n\n>>>>>>>>>> Processing tool calls: {chunk.tools}")
         for tool_call in chunk.tools:
             tool_call_id = tool_call.get("tool_call_id", str(uuid.uuid4()))
             tool_name = tool_call.get("tool_name", "unknown_tool")
             tool_args = tool_call.get("tool_args", {})
             tool_result = tool_call.get("content") # Result is in 'content' for completed calls
+            if chunk.event == AgnoRunEvent.tool_call_completed.value and tool_result is None:
+                #  skip content is not yet there, this completion event for abother call in tools array.
+                continue
+            print(f">>>>>>>>>> Tool details - Event type: {chunk.event}, ID: {tool_call_id}, Name: {tool_name}, Args: {tool_args}")
 
             if is_frontend_action:
                 events.append(ActionExecutionStart(type=RuntimeEventTypes.ACTION_EXECUTION_START, actionExecutionId=tool_call_id, actionName=tool_name, parentMessageId=None)) # type: ignore
                 events.append(ActionExecutionArgs(type=RuntimeEventTypes.ACTION_EXECUTION_ARGS, actionExecutionId=tool_call_id, args=json.dumps(tool_args))) # type: ignore
             elif tool_result is not None and event_type == AgnoRunEvent.tool_call_completed.value:
-                 events.append(ActionExecutionResult(type=RuntimeEventTypes.ACTION_EXECUTION_RESULT, actionExecutionId=tool_call_id, actionName=tool_name, result=str(tool_result))) # type: ignore
+                    events.append(ActionExecutionResult(type=RuntimeEventTypes.ACTION_EXECUTION_RESULT, actionExecutionId=tool_call_id, actionName=tool_name, result=str(tool_result))) # type: ignore
 
     return events
 

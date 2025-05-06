@@ -1,5 +1,6 @@
 # main.py
 import os
+from copilotkit.sdk import ActionDict
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from copilotkit import CopilotKitRemoteEndpoint
@@ -14,13 +15,31 @@ from markdown_agent import markdown_agent
 from copilotkit_integration.agno_agent_adapter import AgnoAgentAdapter
 from copilotkit_integration.agno_workflow_adapter import AgnoWorkflowAdapter
 
+# --- Frontend Action Schemas ---
+# We need to provide this in server as the Copilotkit filters and does not send actions schemas for actions that has available prop as `frontend`
+setBackgroundColorSchema = ActionDict(
+    name="setBackgroundColor",
+    description="Sets the background color of the main page area.",
+    parameters=[
+      {
+        "name": "backgroundColor",
+        "type": "string",
+        "description": "The background color hex value to set (e.g., '#FF0000'). ALWAYS provide a hex code code, not the color name in natural language.",
+        
+      },
+    ],
+    required=["backgroundColor"],
+)
+
 # --- Create CopilotKit SDK Endpoint ---
 sdk = CopilotKitRemoteEndpoint(
     agents=[
         AgnoAgentAdapter(
             agno_agent_instance=sample_agent,
             # markdown_agent_for_tool_call_response=markdown_agent,
-            enable_tool_call_logging=True
+            # enable_tool_call_logging=True,
+            tool_call_frontend_action_name="display_tool_call_details",
+            frontend_action_schemas=[setBackgroundColorSchema]
         ),
         # AgnoWorkflowAdapter(agno_workflow_instance=my_actual_agno_workflow),
     ],

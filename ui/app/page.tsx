@@ -80,7 +80,7 @@ function YourMainContent() {
    // This action has a handler that executes in the frontend to change component state.
    useCopilotAction({
      name: "setBackgroundColor",
-     available: "frontend", // Executes in the frontend
+     available: "enabled", // Executes in the frontend
      description: "Sets the background color of the main page area.",
      parameters: [
        {
@@ -108,6 +108,94 @@ function YourMainContent() {
         return <></>; // Return empty fragment otherwise
       }
    });
+
+     // --- Action: Display tool details on UI ---
+  // This action primarily renders UI in the frontend chat window.
+  useCopilotAction({
+    name: "display_tool_call_details",
+    description: "Displays the details and results of a completed tool call in the chat.",
+    // This action is purely for rendering, so 'available' defaults to frontend
+    // and no 'handler' is needed.
+    parameters: [
+      { name: "tool_call_summary", type: "string", description: "One liner summary of tool call.", required: false },
+      { name: "tool_name", type: "string", description: "Name of the tool called", required: true },
+      { name: "tool_args", type: "string", description: "Stringified arguments of the tool call", required: false },
+      { name: "tool_result", type: "string", description: "Result / outcome of tool call", required: true },
+    ],
+    render: ({ args, status }) => {
+      // If no result, return empty fragment
+      if (!args?.tool_result) {
+        return (
+          <>  </>
+        )
+      }
+      // Only render when the action execution is fully complete
+      if (status === "complete") {
+        let parsedArgs: any = null;
+        try {
+          // Attempt to parse the arguments string for pretty printing
+          if (args.tool_args?.startsWith('[') || args.tool_args?.startsWith('{')) {
+            parsedArgs = JSON.parse(args.tool_args);
+          } else {
+            parsedArgs = args.tool_args;
+          }
+        } catch (e) {
+          console.error("Failed to parse tool_args JSON:", args.tool_args);
+          // Keep args as string if parsing fails
+          parsedArgs = args.tool_args;
+        }
+
+        return (
+          <div className="w-full max-w-[85%] mr-auto my-2"> {/* Align with assistant messages */}
+            <Accordion type="single" collapsible className="w-full">
+              <AccordionItem value="item-1" className="border bg-white rounded-md overflow-hidden shadow-sm text-xs border-gray-200">
+                <AccordionTrigger className="hover:no-underline px-3 py-2 hover:bg-gray-50 transition-colors w-full text-left">
+                  {/* Accordion Trigger: Tool Name and Status */}
+                  <div className="flex items-center gap-2 w-full">
+                    {/* Checkmark Icon for completion */}
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-600 shrink-0"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    <span className="font-medium text-gray-800 capitalize-first">
+                      Tool Executed: {args.tool_name?.replace(/_/g, ' ')}
+                    </span>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="px-3 pb-3 pt-1">
+                  {/* Accordion Content: Arguments and Result */}
+                  <div className="text-black bg-white rounded p-3 prose prose-xs max-w-none border mt-2 space-y-3 shadow-sm">
+                    {/* Display Arguments */}
+                    <div>
+                      <strong className="text-black text-sm">Arguments:</strong>
+                      <pre className="text-xs bg-white p-2.5 mt-2 rounded-md overflow-x-auto font-mono border border-gray-200 text-black shadow-sm">
+                        {typeof parsedArgs === 'object' ? JSON.stringify(parsedArgs, null, 2) : parsedArgs || "(No arguments)"}
+                      </pre>
+                    </div>
+                    {/* Display Result */}
+                    <div>
+                      <strong className="text-black text-sm">Result:</strong>
+                      <div className="mt-2 prose prose-xs max-w-none bg-white rounded-md p-2.5 border border-gray-200 text-black shadow-sm">
+                        <ReactMarkdown>{args.tool_result || "(No result)"}</ReactMarkdown>
+                      </div>
+                    </div>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          </div>
+        );
+      }
+
+      // Optionally show something during execution/inProgress,
+      // but the request asked specifically for rendering when complete.
+      // if (status === "executing") {
+      //   return <div className="text-xs italic text-gray-500 p-1 my-1">Executing tool: {args.tool_name}...</div>;
+      // }
+
+      // Return empty fragment for other statuses
+      return <></>;
+    },
+  });
+// --- End of Action Hook to display Tool calling details
+
 
   // --- Agent State Renderer Hook ---
   // This hook listens for AgentStateMessages from the specified agent

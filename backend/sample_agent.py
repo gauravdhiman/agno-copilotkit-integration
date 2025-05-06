@@ -25,6 +25,7 @@ sample_agent = Agent(
     # model=Groq(id="llama-3.3-70b-versatile"),
     instructions=[
         "If user input is not sufficent, ask user relevant questions / clarifications",
+        "If possible, do parallel tool calls to achieve the goal",
         "To search the web, use google search tool.",
         "To crawl the pages use crawl4ai tools",
         "To get financial information about companies, use YFinance tools"
